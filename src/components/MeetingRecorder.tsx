@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Mic, Square, Pause, Play, AlertCircle, Loader2, 
-  Settings, AudioLines, CheckCircle, RefreshCw, X 
+  Settings, AudioLines, CheckCircle, RefreshCw, X, Clock
 } from 'lucide-react';
 import { Meeting } from '../types';
 
@@ -25,19 +25,29 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
   const [showSettings, setShowSettings] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
-  // Status stages: 'idle' | 'recording' | 'transcribing' | 'summarizing' | 'completed'
-  const [status, setStatus] = useState<'idle' | 'recording' | 'transcribing' | 'summarizing' | 'completed'>('idle');
+  // Status stages: 'idle' | 'recording' | 'naming' | 'transcribing' | 'summarizing' | 'completed'
+  const [status, setStatus] = useState<'idle' | 'recording' | 'naming' | 'transcribing' | 'summarizing' | 'completed'>('idle');
   const [progressText, setProgressText] = useState('');
 
   // Live real-time transcription states
   const [realtimeTranscript, setRealtimeTranscript] = useState('');
   const [isSpeechRecognitionSupported, setIsSpeechRecognitionSupported] = useState(false);
 
+  // Pending recording states for naming before saving
+  const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
+  const [pendingDuration, setPendingDuration] = useState<number>(0);
+  const [customTitle, setCustomTitle] = useState<string>('');
+
+  // Expected meeting duration settings
+  const [expectedMinutes, setExpectedMinutes] = useState<number>(10);
+  const [customExpectedInput, setCustomExpectedInput] = useState<string>('');
+
   // Retry states
   const [retryParams, setRetryParams] = useState<{
     audioBlob: Blob | null;
     duration: number;
     realtimeTranscript: string;
+    customTitle?: string;
   } | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState<number>(0);
@@ -162,34 +172,64 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
       canvas.width = canvas.parentElement?.clientWidth || 600;
       canvas.height = 120;
       
+      let phase = 0;
       const draw = () => {
-        if (!isRecording) return;
+        if (!isRecordingRef.current) return;
         animationFrameRef.current = requestAnimationFrame(draw);
-        analyser.getByteFrequencyData(dataArray);
+        
+        let amplitude = 0;
+        if (analyser && !isPausedRef.current) {
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sum += dataArray[i];
+          }
+          const average = sum / bufferLength;
+          // Scale average volume to a responsive wave amplitude
+          amplitude = (average / 255) * canvas.height * 0.45;
+        }
+        
+        // Baseline amplitude so the waves continue to flow beautifully when silent or paused
+        const baseAmplitude = isPausedRef.current ? 2.5 : 8.5;
+        const finalAmplitude = baseAmplitude + amplitude;
         
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        const barWidth = (canvas.width / bufferLength) * 1.5;
-        let x = 0;
+        // Speed up the flow rate if active, slow down when paused
+        phase += isPausedRef.current ? 0.015 : 0.065;
         
-        for (let i = 0; i < bufferLength; i++) {
-          // Adjust responsiveness based on pause state
-          const amplitude = isPaused ? 5 : dataArray[i];
-          const barHeight = (amplitude / 255) * canvas.height * 0.85;
-          
-          const grad = ctx.createLinearGradient(0, canvas.height, 0, 0);
-          grad.addColorStop(0, '#eff6ff'); // blue-50
-          grad.addColorStop(0.5, '#3b82f6'); // blue-500
-          grad.addColorStop(1, '#1d4ed8'); // blue-700
-          
-          ctx.fillStyle = grad;
+        const drawWave = (
+          offsetPhase: number, 
+          color: string, 
+          frequencyMultiplier: number, 
+          amplitudeMultiplier: number, 
+          strokeWidth: number
+        ) => {
           ctx.beginPath();
-          // Draw smooth rounded bars
-          ctx.roundRect(x, canvas.height / 2 - barHeight / 2, barWidth - 2, barHeight || 4, 2);
-          ctx.fill();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = strokeWidth;
+          ctx.lineCap = 'round';
           
-          x += barWidth;
-        }
+          for (let x = 0; x <= canvas.width; x += 3) {
+            const angle = (x / canvas.width) * Math.PI * 2 * frequencyMultiplier + phase + offsetPhase;
+            const y = (canvas.height / 2) + Math.sin(angle) * finalAmplitude * amplitudeMultiplier;
+            
+            if (x === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+          ctx.stroke();
+        };
+
+        // Draw 3 layers of high-fidelity, intersecting sinusoidal waves
+        // Back wave: Translucent Indigo
+        drawWave(0, 'rgba(99, 102, 241, 0.22)', 1.3, 0.55, 2);
+        // Middle wave: Translucent Violet/Teal
+        drawWave(Math.PI * 0.35, 'rgba(168, 85, 247, 0.32)', 1.7, 0.75, 1.5);
+        // Front wave: Solid bright Indigo
+        drawWave(Math.PI * 0.7, '#4f46e5', 0.9, 1.0, 3.2);
       };
       
       draw();
@@ -252,11 +292,13 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         }
       };
 
-      recorder.onstop = async () => {
+      recorder.onstop = () => {
         const finalBlob = chunksRef.current.length > 0
           ? new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
           : null;
-        await handleRecordingFinish(finalBlob, durationRef.current);
+        setPendingBlob(finalBlob);
+        setPendingDuration(durationRef.current);
+        setStatus('naming');
       };
 
       recorder.start(1000); // chunk every 1 second
@@ -299,24 +341,32 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         };
 
         rec.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error);
+          if (event.error === 'no-speech' || event.error === 'aborted') {
+            console.log('Speech recognition non-fatal status:', event.error);
+            return;
+          }
+          console.warn('Speech recognition warning status:', event.error);
         };
 
         rec.onend = () => {
           // Restart if recording is active and not paused
           if (isRecordingRef.current && !isPausedRef.current) {
-            try {
-              rec.start();
-            } catch (e) {
-              console.error('Failed to restart SpeechRecognition:', e);
-            }
+            setTimeout(() => {
+              if (isRecordingRef.current && !isPausedRef.current && recognitionRef.current) {
+                try {
+                  recognitionRef.current.start();
+                } catch (e) {
+                  console.log('Speech recognition restart deferred:', e);
+                }
+              }
+            }, 300);
           }
         };
 
         recognitionRef.current = rec;
         rec.start();
       } catch (speechErr) {
-        console.error('SpeechRecognition start failed:', speechErr);
+        console.warn('SpeechRecognition start failed:', speechErr);
       }
     }
 
@@ -399,7 +449,9 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
       const totalDuration = durationRef.current;
       stopRecordingResources();
       setIsRecording(false);
-      handleRecordingFinish(null, totalDuration);
+      setPendingBlob(null);
+      setPendingDuration(totalDuration);
+      setStatus('naming');
     }
   };
 
@@ -415,6 +467,9 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
     chunksRef.current = [];
     setRealtimeTranscript('');
     realtimeTranscriptRef.current = '';
+    setPendingBlob(null);
+    setPendingDuration(0);
+    setCustomTitle('');
   };
 
   const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -430,21 +485,23 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
     });
   };
 
-  const handleRecordingFinish = async (audioBlob: Blob | null, totalDuration: number) => {
+  const handleRecordingFinish = async (audioBlob: Blob | null, totalDuration: number, providedTitle?: string) => {
     // Keep parameters in state to support retries if any backend error occurs
     setRetryParams({
       audioBlob,
       duration: totalDuration,
-      realtimeTranscript: realtimeTranscriptRef.current
+      realtimeTranscript: realtimeTranscriptRef.current,
+      customTitle: providedTitle || customTitle
     });
 
-    await executeProcessingAndSave(audioBlob, totalDuration, realtimeTranscriptRef.current);
+    await executeProcessingAndSave(audioBlob, totalDuration, realtimeTranscriptRef.current, providedTitle || customTitle);
   };
 
   const executeProcessingAndSave = async (
     audioBlob: Blob | null, 
     totalDuration: number, 
-    savedRealtimeTranscript: string
+    savedRealtimeTranscript: string,
+    providedTitle?: string
   ) => {
     try {
       setErrorMessage(null);
@@ -479,7 +536,8 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         body: JSON.stringify({
           audio: base64Audio || undefined,
           mimeType: mimeType || undefined,
-          realtimeTranscript: savedRealtimeTranscript || undefined
+          realtimeTranscript: savedRealtimeTranscript || undefined,
+          customTitle: providedTitle || undefined
         })
       });
 
@@ -493,15 +551,19 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
       // Step 3: Package complete meeting details
       setStatus('completed');
       
+      const finalTitle = (providedTitle && providedTitle.trim() !== '')
+        ? providedTitle.trim()
+        : (notes.title || `Meeting - ${new Date().toLocaleDateString()}`);
+
       const newMeeting: Meeting = {
         id: crypto.randomUUID(),
-        title: notes.title || `Meeting - ${new Date().toLocaleDateString()}`,
+        title: finalTitle,
         date: new Date().toISOString(),
         duration: totalDuration,
         audioBlob: audioBlob || undefined,
         transcript: notes.transcript || savedRealtimeTranscript || '',
         notes: {
-          title: notes.title || `Meeting - ${new Date().toLocaleDateString()}`,
+          title: finalTitle,
           summary: notes.summary || '',
           keyPoints: notes.keyPoints || [],
           decisions: notes.decisions || [],
@@ -634,7 +696,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
               <button
                 onClick={async () => {
                   setIsRetrying(true);
-                  await executeProcessingAndSave(retryParams.audioBlob, retryParams.duration, retryParams.realtimeTranscript);
+                  await executeProcessingAndSave(retryParams.audioBlob, retryParams.duration, retryParams.realtimeTranscript, retryParams.customTitle);
                   setIsRetrying(false);
                 }}
                 disabled={isRetrying || cooldownSeconds > 0}
@@ -667,21 +729,78 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
       <div className="flex flex-col items-center justify-center py-8">
         
         {status === 'idle' && (
-          <div className="relative group" id="start-recording-container">
-            {/* Pulsing visual halo backgrounds */}
-            <div className="absolute -inset-4 bg-indigo-500/10 dark:bg-indigo-400/5 rounded-full blur-xl group-hover:scale-110 transition-transform duration-500" />
-            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full blur opacity-30 group-hover:opacity-45 transition-all duration-300" />
-            
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={startRecording}
-              className="w-26 h-26 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 shadow-xl shadow-indigo-500/20 focus:outline-none transition-all duration-300 cursor-pointer relative z-10"
-              title="Start Recording"
-              id="start-recording-btn"
-            >
-              <Mic className="w-11 h-11 text-white/95" />
-            </motion.button>
+          <div className="w-full flex flex-col items-center gap-6" id="idle-controls-wrapper">
+            {/* Target Meeting Duration Configuration Picker */}
+            <div className="w-full max-w-sm bg-slate-50/80 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl p-4.5 text-center shadow-sm" id="expected-duration-picker">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-3.5 select-none font-mono">
+                Set Target Meeting Length
+              </span>
+              <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
+                {[5, 10, 15, 30].map((mins) => (
+                  <button
+                    key={mins}
+                    onClick={() => {
+                      setExpectedMinutes(mins);
+                      setCustomExpectedInput('');
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                      expectedMinutes === mins && !customExpectedInput
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                    id={`expected-mins-btn-${mins}`}
+                  >
+                    {mins}m
+                  </button>
+                ))}
+                <div className="relative inline-flex items-center">
+                  <input
+                    type="number"
+                    min="1"
+                    max="180"
+                    placeholder="Custom"
+                    value={customExpectedInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomExpectedInput(val);
+                      const parsed = parseInt(val, 10);
+                      if (parsed > 0) {
+                        setExpectedMinutes(parsed);
+                      }
+                    }}
+                    className={`w-20 px-2 py-1.5 rounded-lg text-xs text-center border focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold ${
+                      customExpectedInput
+                        ? 'bg-indigo-600 border-indigo-600 text-white placeholder-white/80'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400'
+                    }`}
+                    id="expected-mins-custom-input"
+                  />
+                  {customExpectedInput && (
+                    <span className="absolute right-2 text-[10px] text-white select-none">m</span>
+                  )}
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                Currently configured for: <strong className="font-bold text-indigo-600 dark:text-indigo-400">{expectedMinutes} minutes</strong>
+              </p>
+            </div>
+
+            <div className="relative group mt-2" id="start-recording-container">
+              {/* Pulsing visual halo backgrounds */}
+              <div className="absolute -inset-4 bg-indigo-500/10 dark:bg-indigo-400/5 rounded-full blur-xl group-hover:scale-110 transition-transform duration-500" />
+              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full blur opacity-30 group-hover:opacity-45 transition-all duration-300" />
+              
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={startRecording}
+                className="w-26 h-26 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 shadow-xl shadow-indigo-500/20 focus:outline-none transition-all duration-300 cursor-pointer relative z-10"
+                title="Start Recording"
+                id="start-recording-btn"
+              >
+                <Mic className="w-11 h-11 text-white/95" />
+              </motion.button>
+            </div>
           </div>
         )}
 
@@ -690,6 +809,39 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
             <div className="text-5xl font-mono tracking-widest text-slate-900 dark:text-white font-black mb-6 flex items-center gap-3" id="timer-display">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
               {formatTime(duration)}
+            </div>
+
+            {/* Target Meeting Duration Progress Indicator */}
+            <div className="w-full bg-slate-50/50 dark:bg-slate-950/30 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4.5 mb-6 shadow-sm flex flex-col gap-2.5 transition-colors duration-200" id="meeting-progress-wrapper">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 select-none font-mono text-[10px] uppercase tracking-widest">
+                  <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                  Target Progress
+                </span>
+                <span className={`font-mono font-black text-xs ${duration > expectedMinutes * 60 ? 'text-amber-600 dark:text-amber-400 animate-pulse font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                  {duration > expectedMinutes * 60 ? (
+                    `OVERTIME +${formatTime(duration - expectedMinutes * 60)}`
+                  ) : (
+                    `${Math.min(100, Math.round((duration / (expectedMinutes * 60)) * 100))}%`
+                  )}
+                </span>
+              </div>
+              
+              <div className="w-full bg-slate-200/60 dark:bg-slate-800 rounded-full h-3 overflow-hidden shadow-inner relative">
+                <div 
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    duration > expectedMinutes * 60 
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-600' 
+                      : 'bg-gradient-to-r from-indigo-500 to-indigo-600'
+                  }`}
+                  style={{ width: `${Math.min(100, (duration / (expectedMinutes * 60)) * 100)}%` }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono font-medium">
+                <span>Elapsed: {formatTime(duration)}</span>
+                <span>Target: {expectedMinutes}:00</span>
+              </div>
             </div>
             
             {/* Visualizer Canvas */}
@@ -762,6 +914,60 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
               >
                 <X className="w-5 h-5" />
               </motion.button>
+            </div>
+          </div>
+        )}
+
+        {status === 'naming' && (
+          <div className="w-full flex flex-col items-center animate-fade-in" id="naming-active-area">
+            <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4 shadow-sm">
+              <AudioLines className="w-6 h-6 animate-pulse" />
+            </div>
+            
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight text-center mb-1.5" id="naming-header">
+              Name Your Meeting
+            </h3>
+            
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center max-w-sm mb-6 leading-relaxed">
+              Give your meeting a descriptive title. If left blank, Gemini AI will automatically generate an optimized title for you based on the conversation context.
+            </p>
+            
+            <div className="w-full mb-6">
+              <input
+                type="text"
+                value={customTitle}
+                onChange={(e) => setCustomTitle(e.target.value)}
+                placeholder="e.g. Project Sync with Dev Team"
+                className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 shadow-sm animate-fade-in"
+                id="meeting-custom-title-input"
+                autoFocus
+              />
+            </div>
+            
+            <div className="flex items-center gap-3 w-full justify-center">
+              <button
+                onClick={() => {
+                  setPendingBlob(null);
+                  setPendingDuration(0);
+                  setCustomTitle('');
+                  setStatus('idle');
+                }}
+                className="px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl transition-all cursor-pointer"
+                id="naming-cancel-btn"
+              >
+                Discard
+              </button>
+              
+              <button
+                onClick={async () => {
+                  await handleRecordingFinish(pendingBlob, pendingDuration);
+                }}
+                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs uppercase tracking-widest flex items-center gap-2 shadow-sm transition-all cursor-pointer hover:shadow-indigo-500/10"
+                id="naming-save-btn"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Process & Save
+              </button>
             </div>
           </div>
         )}

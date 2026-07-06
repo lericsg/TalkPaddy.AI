@@ -24,6 +24,7 @@ import {
   deleteMeetingFromFirestore 
 } from './lib/firestoreService';
 import SignIn from './components/SignIn';
+import { LogoFull } from './components/Logo';
 
 export default function App() {
   const [view, setView] = useState<'history' | 'recorder' | 'details'>('history');
@@ -173,15 +174,10 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div 
             onClick={() => { setView('history'); setSelectedMeeting(null); }}
-            className="flex items-center gap-3 cursor-pointer group select-none"
+            className="cursor-pointer select-none"
             id="logo-brand"
           >
-            <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 dark:from-blue-500 dark:via-indigo-500 dark:to-violet-500 rounded-lg flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/10 dark:shadow-indigo-500/5 transition-all group-hover:scale-105 duration-300">
-              <Sparkles className="w-4.5 h-4.5 text-white animate-pulse" />
-            </div>
-            <span className="font-bold tracking-tight text-slate-900 dark:text-white text-lg uppercase font-sans">
-              TalkPaddy <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-600 dark:from-blue-400 dark:via-indigo-300 dark:to-violet-400 font-extrabold">Meeting AI</span>
-            </span>
+            <LogoFull variant="horizontal" iconSize={36} />
           </div>
 
           <div className="flex items-center gap-3">

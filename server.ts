@@ -101,7 +101,7 @@ async function startServer() {
   // Optimizes quota usage and reduces API costs by 50%
   app.post("/api/process-meeting", async (req, res) => {
     try {
-      const { audio, mimeType, realtimeTranscript } = req.body;
+      const { audio, mimeType, realtimeTranscript, customTitle } = req.body;
 
       const schema = {
         type: Type.OBJECT,
@@ -181,6 +181,10 @@ Please do the following:
 - Key decisions made or agreed upon.
 - A checklist of action items or next steps, assigning them to the specified team member (or 'Unassigned' if unknown).
 - 3 to 5 categories/tags for organization.`;
+
+      if (customTitle && customTitle.trim() !== "") {
+        prompt += `\n\n- IMPORTANT: The user has specified the meeting title as "${customTitle.trim()}". Please use this exact title for the "title" field in your JSON response.`;
+      }
 
       contents.push(prompt);
 

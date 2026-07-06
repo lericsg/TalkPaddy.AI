@@ -6,7 +6,8 @@
 import { useState } from 'react';
 import { 
   Calendar, Clock, Search, Tag, Trash2, Mic, Play, 
-  MessageSquare, ChevronRight, Filter, AlertTriangle, X 
+  MessageSquare, ChevronRight, Filter, AlertTriangle, X,
+  ArrowUpDown, SlidersHorizontal
 } from 'lucide-react';
 import { Meeting } from '../types';
 
@@ -23,6 +24,8 @@ export default function MeetingHistory({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [meetingToDelete, setMeetingToDelete] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'date' | 'duration' | 'title'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Helper: Format duration
   const formatDuration = (totalSeconds: number) => {
@@ -57,6 +60,19 @@ export default function MeetingHistory({
     const matchesTag = !selectedTag || (m.notes?.tags && m.notes.tags.includes(selectedTag));
 
     return matchesSearch && matchesTag;
+  });
+
+  // Sort meetings
+  const sortedMeetings = [...filteredMeetings].sort((a, b) => {
+    let comparison = 0;
+    if (sortBy === 'date') {
+      comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+    } else if (sortBy === 'duration') {
+      comparison = a.duration - b.duration;
+    } else if (sortBy === 'title') {
+      comparison = a.title.localeCompare(b.title);
+    }
+    return sortOrder === 'asc' ? comparison : -comparison;
   });
 
   return (
@@ -104,16 +120,46 @@ export default function MeetingHistory({
         <div className="space-y-6" id="history-content">
           {/* Filters Bar: Search and Tag Filter badges */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm p-5 md:p-6 space-y-5 transition-colors duration-200" id="filters-container">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
-              <input 
-                type="text"
-                placeholder="Search meetings by title, date, notes, or tags..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl pl-11 pr-4 py-3 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-600 dark:focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                id="search-meetings-input"
-              />
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <div className="relative flex-grow">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
+                <input 
+                  type="text"
+                  placeholder="Search meetings by title, date, notes, or tags..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl pl-11 pr-4 py-3.5 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-600 dark:focus:ring-indigo-500 focus:border-transparent transition-all duration-200 shadow-inner"
+                  id="search-meetings-input"
+                />
+              </div>
+
+              {/* Advanced Sorting Controls */}
+              <div className="flex items-center gap-2.5 flex-shrink-0" id="sorting-controls-bar">
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5 select-none font-mono">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+                  Sort By:
+                </span>
+                
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-3 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all cursor-pointer font-bold"
+                  id="sort-by-select"
+                >
+                  <option value="date">Date</option>
+                  <option value="duration">Duration</option>
+                  <option value="title">Title</option>
+                </select>
+
+                <button
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all cursor-pointer shadow-sm flex items-center justify-center"
+                  title={sortOrder === 'asc' ? "Sort Descending" : "Sort Ascending"}
+                  id="sort-order-toggle-btn"
+                >
+                  <ArrowUpDown className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
              {/* Tag Filter badging */}
@@ -148,11 +194,11 @@ export default function MeetingHistory({
           </div>
 
           {/* Meetings List */}
-          {filteredMeetings.length === 0 ? (
+          {sortedMeetings.length === 0 ? (
             <div className="text-center py-16 text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm" id="no-search-results">
               <p className="text-sm font-medium">No archived meetings match your filters.</p>
               <button 
-                onClick={() => { setSearchTerm(''); setSelectedTag(null); }}
+                onClick={() => { setSearchTerm(''); setSelectedTag(null); setSortBy('date'); setSortOrder('desc'); }}
                 className="text-xs text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider mt-3 cursor-pointer hover:underline"
                 id="reset-search-btn"
               >
@@ -161,7 +207,7 @@ export default function MeetingHistory({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4" id="meetings-list">
-              {filteredMeetings.map(meeting => (
+              {sortedMeetings.map(meeting => (
                 <div 
                   key={meeting.id}
                   className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 hover:border-indigo-200 dark:hover:border-indigo-900/80 rounded-2xl shadow-sm hover:shadow-md/5 transition-all duration-300 p-6 md:p-7 flex flex-col md:flex-row md:items-center justify-between gap-6 group cursor-pointer"

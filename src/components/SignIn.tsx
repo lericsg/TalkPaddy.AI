@@ -17,6 +17,7 @@ import {
 import { 
   Sparkles, Mail, Lock, User, AlertCircle, LogIn, ArrowRight, Loader2 
 } from 'lucide-react';
+import { LogoFull } from './Logo';
 
 interface SignInProps {
   onSignInSuccess: () => void;
@@ -108,14 +109,9 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#020617] px-4 py-16 transition-colors duration-200 selection:bg-indigo-600 selection:text-white" id="signin-root">
       <div className="w-full max-w-md space-y-8" id="signin-card-container">
         {/* Brand Header */}
-        <div className="text-center" id="signin-header">
-          <div className="inline-flex w-14 h-14 bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 dark:from-blue-500 dark:via-indigo-500 dark:to-violet-500 rounded-2xl items-center justify-center text-white font-bold mb-5 shadow-lg shadow-indigo-500/10 dark:shadow-indigo-500/5 select-none">
-            <Sparkles className="w-7 h-7 text-white animate-pulse" />
-          </div>
-          <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase font-sans">
-            TalkPaddy <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-600 dark:from-blue-400 dark:via-indigo-300 dark:to-violet-400">Meeting AI</span>
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2.5 max-w-xs mx-auto leading-relaxed">
+        <div className="text-center space-y-2" id="signin-header">
+          <LogoFull variant="vertical" iconSize={100} />
+          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed pt-2">
             Record, transcribe, and structure your meetings with real-time audio and smart AI summaries.
           </p>
         </div>

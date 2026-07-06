@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { jsPDF } from 'jspdf';
 import { 
   ChevronLeft, Calendar, Clock, Copy, Check, Download, 
   Search, Play, Pause, Edit3, Save, CheckSquare, Square, 
@@ -23,6 +24,7 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
   const [isCopied, setIsCopied] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   
   // Audio Player States
   const [isPlaying, setIsPlaying] = useState(false);
@@ -173,6 +175,235 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Export structured notes to plaintext (.txt) file
+  const handleExportText = () => {
+    if (!meeting.notes) return;
+    const { title, summary, keyPoints, decisions, actionItems, tags } = meeting.notes;
+    
+    let txtContent = `==================================================\n`;
+    txtContent += `MEETING NOTES: ${editTitle.toUpperCase()}\n`;
+    txtContent += `==================================================\n`;
+    txtContent += `Date: ${new Date(meeting.date).toLocaleString()}\n`;
+    txtContent += `Duration: ${formatDuration(meeting.duration)}\n`;
+    if (tags && tags.length > 0) {
+      txtContent += `Tags: ${tags.join(', ')}\n`;
+    }
+    txtContent += `\n`;
+    
+    txtContent += `EXECUTIVE SUMMARY\n`;
+    txtContent += `--------------------------------------------------\n`;
+    txtContent += `${summary}\n\n`;
+    
+    if (keyPoints && keyPoints.length > 0) {
+      txtContent += `KEY DISCUSSION POINTS\n`;
+      txtContent += `--------------------------------------------------\n`;
+      keyPoints.forEach(point => {
+        txtContent += `• ${point}\n`;
+      });
+      txtContent += `\n`;
+    }
+
+    if (decisions && decisions.length > 0) {
+      txtContent += `DECISIONS MADE\n`;
+      txtContent += `--------------------------------------------------\n`;
+      decisions.forEach(decision => {
+        txtContent += `✔ ${decision}\n`;
+      });
+      txtContent += `\n`;
+    }
+
+    if (actionItems && actionItems.length > 0) {
+      txtContent += `ACTION ITEMS CHECKLIST\n`;
+      txtContent += `--------------------------------------------------\n`;
+      actionItems.forEach(item => {
+        txtContent += `[${item.completed ? 'X' : ' '}] ${item.task} (Assignee: ${item.assignee})\n`;
+      });
+      txtContent += `\n`;
+    }
+
+    if (meeting.transcript) {
+      txtContent += `MEETING TRANSCRIPT\n`;
+      txtContent += `--------------------------------------------------\n`;
+      txtContent += `${meeting.transcript}\n`;
+    }
+
+    const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${editTitle.toLowerCase().replace(/\s+/g, '_')}_notes.txt`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Export structured notes as a beautifully formatted PDF document
+  const handleExportPDF = () => {
+    if (!meeting.notes) return;
+    const { title, summary, keyPoints, decisions, actionItems, tags } = meeting.notes;
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const maxLineWidth = pageWidth - (margin * 2);
+
+    let y = margin;
+
+    const checkPageOverflow = (neededHeight: number) => {
+      if (y + neededHeight > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+    };
+
+    const addSectionHeader = (text: string) => {
+      checkPageOverflow(15);
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(79, 70, 229); // indigo-600
+      doc.text(text, margin, y);
+      y += 6;
+      
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.setLineWidth(0.5);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 8;
+    };
+
+    const addWrappedParagraph = (text: string, fontSize = 10, isItalic = false) => {
+      doc.setFont('Helvetica', isItalic ? 'oblique' : 'normal');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(51, 65, 85); // slate-700
+      
+      const lines = doc.splitTextToSize(text, maxLineWidth);
+      const lineHeight = fontSize * 0.45;
+
+      lines.forEach((line: string) => {
+        checkPageOverflow(lineHeight + 2);
+        doc.text(line, margin, y);
+        y += lineHeight;
+      });
+      y += 4;
+    };
+
+    // Document Title
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(15, 23, 42); // slate-900
+    const titleLines = doc.splitTextToSize(editTitle.toUpperCase(), maxLineWidth);
+    titleLines.forEach((line: string) => {
+      checkPageOverflow(12);
+      doc.text(line, margin, y);
+      y += 10;
+    });
+    y += 2;
+
+    // Metadata Row
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139); // slate-500
+    const metaText = `Date: ${new Date(meeting.date).toLocaleString()}   |   Duration: ${formatDuration(meeting.duration)}`;
+    doc.text(metaText, margin, y);
+    y += 6;
+
+    if (tags && tags.length > 0) {
+      doc.setFont('Helvetica', 'bold');
+      doc.text(`Tags: ${tags.join(', ')}`, margin, y);
+      y += 8;
+    } else {
+      y += 4;
+    }
+
+    // Divider
+    doc.setDrawColor(203, 213, 225); // slate-300
+    doc.setLineWidth(1);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // 1. Executive Summary
+    addSectionHeader('EXECUTIVE SUMMARY');
+    addWrappedParagraph(summary || 'No executive summary compiled.');
+
+    // 2. Key Discussion Points
+    if (keyPoints && keyPoints.length > 0) {
+      addSectionHeader('KEY DISCUSSION POINTS');
+      keyPoints.forEach(point => {
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(51, 65, 85);
+        
+        const bulletText = `•  ${point}`;
+        const bulletLines = doc.splitTextToSize(bulletText, maxLineWidth - 4);
+        
+        bulletLines.forEach((line: string, index: number) => {
+          checkPageOverflow(6);
+          doc.text(line, margin + (index === 0 ? 0 : 4), y);
+          y += 5;
+        });
+        y += 2;
+      });
+      y += 4;
+    }
+
+    // 3. Decisions Made
+    if (decisions && decisions.length > 0) {
+      addSectionHeader('DECISIONS MADE');
+      decisions.forEach(decision => {
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(51, 65, 85);
+        
+        const text = `✔  ${decision}`;
+        const lines = doc.splitTextToSize(text, maxLineWidth - 4);
+        
+        lines.forEach((line: string, index: number) => {
+          checkPageOverflow(6);
+          doc.text(line, margin + (index === 0 ? 0 : 4), y);
+          y += 5;
+        });
+        y += 2;
+      });
+      y += 4;
+    }
+
+    // 4. Action Items Checklist
+    if (actionItems && actionItems.length > 0) {
+      addSectionHeader('ACTION ITEMS CHECKLIST');
+      actionItems.forEach(item => {
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(51, 65, 85);
+        
+        const statusBox = item.completed ? '[X]' : '[  ]';
+        const itemText = `${statusBox}  ${item.task} (Assignee: ${item.assignee})`;
+        const lines = doc.splitTextToSize(itemText, maxLineWidth - 4);
+        
+        lines.forEach((line: string, index: number) => {
+          checkPageOverflow(6);
+          doc.text(line, margin + (index === 0 ? 0 : 4), y);
+          y += 5;
+        });
+        y += 2;
+      });
+      y += 4;
+    }
+
+    // 5. Full Transcript
+    if (meeting.transcript) {
+      addSectionHeader('MEETING TRANSCRIPT');
+      addWrappedParagraph(meeting.transcript, 9);
+    }
+
+    // Save the PDF
+    doc.save(`${editTitle.toLowerCase().replace(/\s+/g, '_')}_notes.pdf`);
   };
 
   // Custom Audio Player controls
@@ -387,21 +618,77 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
               <>
                 <button 
                   onClick={() => setIsEditing(true)}
-                  className="p-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-800 transition-all cursor-pointer"
+                  className="p-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-800 transition-all cursor-pointer animate-fade-in"
                   title="Edit Notes"
                   id="start-edit-btn"
                 >
-                  <Edit3 className="w-4 h-4" />
+                  <Edit3 className="w-4.5 h-4.5" />
                 </button>
                 {meeting.notes && (
-                  <button 
-                    onClick={handleExportMarkdown}
-                    className="p-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-800 transition-all cursor-pointer"
-                    title="Export Markdown"
-                    id="export-markdown-btn"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
+                  <div className="relative" id="export-menu-container">
+                    <button 
+                      onClick={() => setShowExportMenu(!showExportMenu)}
+                      className="px-4.5 py-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-widest flex items-center gap-2.5 shadow-sm hover:shadow-md/5 transition-all cursor-pointer select-none"
+                      title="Export Options"
+                      id="export-options-toggle-btn"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export notes
+                    </button>
+                    
+                    <AnimatePresence>
+                      {showExportMenu && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setShowExportMenu(false)} 
+                          />
+                          <motion.div
+                            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute right-0 mt-2 w-52 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl shadow-xl p-2 z-50 transition-colors duration-200"
+                            id="export-dropdown-menu"
+                          >
+                            <button
+                              onClick={() => {
+                                handleExportPDF();
+                                setShowExportMenu(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2.5 cursor-pointer transition-colors"
+                              id="export-pdf-btn"
+                            >
+                              <FileText className="w-4 h-4 text-rose-500" />
+                              Export as PDF (.pdf)
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleExportText();
+                                setShowExportMenu(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2.5 cursor-pointer transition-colors"
+                              id="export-text-btn"
+                            >
+                              <FileText className="w-4 h-4 text-blue-500" />
+                              Export as Plain Text (.txt)
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleExportMarkdown();
+                                setShowExportMenu(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2.5 cursor-pointer transition-colors"
+                              id="export-md-btn"
+                            >
+                              <FileText className="w-4 h-4 text-emerald-500" />
+                              Export as Markdown (.md)
+                            </button>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 )}
               </>
             )}
