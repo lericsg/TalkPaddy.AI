@@ -27,12 +27,12 @@ import {
 } from 'firebase/firestore';
 
 const firebaseConfig = {
-  projectId: "massive-arbor-x3n78",
-  appId: "1:391469535267:web:bc73cf22d0cd33569ce196",
-  apiKey: "AIzaSyDYXa7vk1Js8xh7wYWaqcyswhwkxpTHG4w",
-  authDomain: "massive-arbor-x3n78.firebaseapp.com",
-  storageBucket: "massive-arbor-x3n78.firebasestorage.app",
-  messagingSenderId: "391469535267"
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID
 };
 
 const app = initializeApp(firebaseConfig);
@@ -40,7 +40,7 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Pass the custom firestoreDatabaseId from the configuration
-export const db = getFirestore(app, "ai-studio-talkpaddymeeting-fe7d6422-3cf3-42aa-8088-f43af074a6b3");
+export const db = getFirestore(app, import.meta.env.VITE_FIREBASE_DATABASE_ID);
 
 // Authenticate helper: Sign in with Google Popup
 export async function signInWithGoogle() {
