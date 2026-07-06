@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents an authenticated user in the system.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique identifier for the user" },
+        "email": { "type": "string", "description": "Email address of the user" },
+        "displayName": { "type": "string", "description": "Display name of the user" },
+        "createdAt": { "type": "number", "description": "Timestamp when the user account was initialized" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Meeting": {
+      "title": "Meeting",
+      "description": "Represents a recorded meeting with transcriptions and notes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the meeting" },
+        "userId": { "type": "string", "description": "ID of the user who owns the meeting" },
+        "title": { "type": "string", "description": "Title of the meeting" },
+        "date": { "type": "string", "description": "ISO format date of the meeting" },
+        "duration": { "type": "number", "description": "Duration in seconds" },
+        "transcript": { "type": "string", "description": "Full meeting transcript text" },
+        "createdAt": { "type": "number", "description": "Creation epoch timestamp" }
+      },
+      "required": ["id", "userId", "title", "date", "duration", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "#/entities/User",
+      "description": "The user profile document"
+    },
+    "/meetings/{meetingId}": {
+      "schema": "#/entities/Meeting",
+      "description": "User specific meeting recordings and notes"
+    }
+  }
+}

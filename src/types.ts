@@ -20,6 +20,7 @@ export interface MeetingNotes {
 
 export interface Meeting {
   id: string;
+  userId?: string;
   title: string;
   date: string; // ISO string
   duration: number; // in seconds

@@ -257,15 +257,15 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
       {/* Back to history button */}
       <button 
         onClick={onBack}
-        className="flex items-center gap-1.5 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 font-semibold text-sm mb-6 transition-all group cursor-pointer"
+        className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 font-bold text-xs mb-6 transition-all group cursor-pointer uppercase tracking-widest select-none"
         id="back-to-list-btn"
       >
         <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
-        Back to Meetings
+        Back to Discussions
       </button>
 
       {/* Meeting Header Card */}
-      <div className="bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8 mb-6 transition-colors duration-200" id="header-card">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm p-6 md:p-8 mb-6 transition-all duration-200" id="header-card">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
           <div className="flex-grow">
             {isEditing ? (
@@ -273,44 +273,44 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-4 py-2 focus:outline-none focus:ring-1 focus:ring-blue-600 dark:focus:ring-blue-500 focus:border-transparent transition-colors duration-200"
+                className="w-full text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-indigo-600 dark:focus:ring-indigo-500 focus:border-transparent transition-colors duration-200"
                 id="edit-title-input"
               />
             ) : (
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white uppercase" id="details-meeting-title">
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white uppercase font-sans" id="details-meeting-title">
                 {meeting.title}
               </h1>
             )}
 
             {/* Metadata row */}
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-500 dark:text-slate-400 mt-4 font-mono transition-colors duration-200" id="metadata-row">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-400 dark:text-slate-500 mt-4 font-mono transition-colors duration-200 animate-fade-in" id="metadata-row">
               <span className="flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <Calendar className="w-4 h-4 text-slate-400" />
                 {new Date(meeting.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
               </span>
               <span className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <Clock className="w-4 h-4 text-slate-400" />
                 Duration: {formatDuration(meeting.duration)}
               </span>
             </div>
 
             {/* Display / Edit Tags */}
             {isEditing ? (
-              <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 max-w-xl transition-colors duration-200" id="edit-tags-container">
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+              <div className="mt-4 p-5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 max-w-xl transition-colors duration-200" id="edit-tags-container">
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2.5 select-none">
                   Custom tags
                 </label>
-                <div className="flex flex-wrap gap-2 mb-3">
+                <div className="flex flex-wrap gap-2 mb-4">
                   {editTags.map((tag, idx) => (
                     <span 
                       key={idx} 
-                      className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 text-blue-600 dark:text-blue-400 pl-2.5 pr-1.5 py-1 rounded"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 pl-2.5 pr-1.5 py-1 rounded-lg"
                     >
                       {tag}
                       <button
                         type="button"
                         onClick={() => handleRemoveTag(tag)}
-                        className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-400 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                        className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-indigo-150 dark:hover:bg-indigo-900/60 text-indigo-400 hover:text-indigo-600 transition-colors cursor-pointer"
                         id={`remove-tag-btn-${idx}`}
                       >
                         &times;
@@ -333,13 +333,13 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
                         handleAddTag();
                       }
                     }}
-                    className="flex-grow text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-600 transition-colors duration-200"
+                    className="flex-grow text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-colors duration-200"
                     id="new-tag-input-field"
                   />
                   <button
                     type="button"
                     onClick={() => handleAddTag()}
-                    className="px-3 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded transition-all cursor-pointer"
+                    className="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all cursor-pointer"
                     id="add-tag-submit-btn"
                   >
                     Add
@@ -352,9 +352,9 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
                   {meeting.notes.tags.map((tag, idx) => (
                     <span 
                       key={idx} 
-                      className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded transition-colors duration-200"
+                      className="inline-flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-md transition-colors duration-200"
                     >
-                      <Tag className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                      <Tag className="w-3 h-3 text-slate-400" />
                       {tag}
                     </span>
                   ))}
@@ -369,15 +369,15 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
               <>
                 <button 
                   onClick={handleSaveEdits}
-                  className="px-4 py-2 text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 rounded flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  className="px-4.5 py-2.5 text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-500/10 transition-all cursor-pointer"
                   id="save-edit-btn"
                 >
                   <Save className="w-4 h-4" />
-                  Save
+                  Save Changes
                 </button>
                 <button 
                   onClick={handleCancelEdits}
-                  className="px-4 py-2 text-sm font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded transition-all cursor-pointer"
+                  className="px-4.5 py-2.5 text-sm font-semibold border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl transition-all cursor-pointer"
                   id="cancel-edit-btn"
                 >
                   Cancel
@@ -387,7 +387,7 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
               <>
                 <button 
                   onClick={() => setIsEditing(true)}
-                  className="p-2.5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                  className="p-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-800 transition-all cursor-pointer"
                   title="Edit Notes"
                   id="start-edit-btn"
                 >
@@ -396,7 +396,7 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
                 {meeting.notes && (
                   <button 
                     onClick={handleExportMarkdown}
-                    className="p-2.5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                    className="p-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-800 transition-all cursor-pointer"
                     title="Export Markdown"
                     id="export-markdown-btn"
                   >
@@ -410,7 +410,7 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
 
         {/* Custom Audio Player */}
         {audioUrl && (
-          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800" id="audio-player-container">
+          <div className="mt-8 pt-6 border-t border-slate-200/60 dark:border-slate-800/60" id="audio-player-container">
             <audio 
               ref={audioRef} 
               src={audioUrl} 
@@ -419,18 +419,18 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
               onEnded={handleAudioEnded}
               className="hidden"
             />
-            <div className="flex items-center gap-4 bg-blue-50/30 dark:bg-blue-950/20 rounded p-4 border border-blue-100 dark:border-blue-900/40">
+            <div className="flex items-center gap-4 bg-indigo-50/20 dark:bg-indigo-950/10 rounded-2xl p-4.5 border border-indigo-100/50 dark:border-indigo-900/30">
               <button 
                 onClick={handlePlayPause}
-                className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-all shadow-sm cursor-pointer"
+                className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all shadow-md shadow-indigo-500/15 cursor-pointer"
                 title={isPlaying ? "Pause" : "Play"}
                 id="audio-play-pause-btn"
               >
-                {isPlaying ? <Pause className="w-4 h-4 fill-white text-white" /> : <Play className="w-4 h-4 fill-white text-white translate-x-[1px]" />}
+                {isPlaying ? <Pause className="w-4.5 h-4.5 fill-white text-white" /> : <Play className="w-4.5 h-4.5 fill-white text-white translate-x-[1px]" />}
               </button>
 
-              <div className="flex-grow flex items-center gap-3">
-                <span className="text-xs font-mono text-blue-700 dark:text-blue-400 min-w-[35px] font-semibold">
+              <div className="flex-grow flex items-center gap-3.5">
+                <span className="text-xs font-mono text-indigo-700 dark:text-indigo-400 min-w-[35px] font-bold">
                   {formatAudioTime(currentTime)}
                 </span>
                 
@@ -440,11 +440,11 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
                   max={audioDuration || 100}
                   value={currentTime}
                   onChange={handleAudioSeek}
-                  className="flex-grow accent-blue-600 h-1.5 bg-blue-100 dark:bg-slate-800 rounded cursor-pointer"
+                  className="flex-grow accent-indigo-600 h-1.5 bg-indigo-100/50 dark:bg-slate-800 rounded-lg cursor-pointer"
                   id="audio-progress-bar"
                 />
 
-                <span className="text-xs font-mono text-blue-700 dark:text-blue-400 min-w-[35px] font-semibold">
+                <span className="text-xs font-mono text-indigo-700 dark:text-indigo-400 min-w-[35px] font-bold">
                   {formatAudioTime(audioDuration)}
                 </span>
               </div>
@@ -454,12 +454,12 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
       </div>
 
       {/* Main Tabbed Layout */}
-      <div className="bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors duration-200" id="details-tabs-container">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm overflow-hidden transition-colors duration-200" id="details-tabs-container">
         {/* Tab Headers */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 px-6 pt-4 transition-colors duration-200" id="tab-headers">
+        <div className="flex border-b border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-950/20 px-6 pt-4 transition-colors duration-200" id="tab-headers">
           <button 
             onClick={() => setActiveTab('notes')}
-            className={`flex items-center gap-2 px-4 pb-4 text-sm font-bold relative transition-all cursor-pointer ${activeTab === 'notes' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+            className={`flex items-center gap-2 px-4 pb-4 text-xs font-bold relative transition-all uppercase tracking-wider cursor-pointer ${activeTab === 'notes' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
             id="tab-notes-btn"
           >
             <Sparkles className="w-4 h-4" />
@@ -467,14 +467,14 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
             {activeTab === 'notes' && (
               <motion.div 
                 layoutId="activeTabIndicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded"
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-full"
               />
             )}
           </button>
           
           <button 
             onClick={() => setActiveTab('transcript')}
-            className={`flex items-center gap-2 px-4 pb-4 text-sm font-bold relative transition-all cursor-pointer ${activeTab === 'transcript' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+            className={`flex items-center gap-2 px-4 pb-4 text-xs font-bold relative transition-all uppercase tracking-wider cursor-pointer ${activeTab === 'transcript' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
             id="tab-transcript-btn"
           >
             <FileText className="w-4 h-4" />
@@ -482,7 +482,7 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
             {activeTab === 'transcript' && (
               <motion.div 
                 layoutId="activeTabIndicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded"
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-full"
               />
             )}
           </button>
@@ -495,8 +495,8 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
               
               {/* Summary Block */}
               <div id="executive-summary-section">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-3 flex items-center gap-2 transition-colors duration-200">
-                  <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <h3 className="text-[10px] font-bold text-slate-900 dark:text-white uppercase tracking-widest mb-4 flex items-center gap-2 select-none">
+                  <MessageSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   Executive Summary
                 </h3>
                 {isEditing ? (
@@ -504,7 +504,7 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
                     value={editSummary}
                     onChange={(e) => setEditSummary(e.target.value)}
                     rows={5}
-                    className="w-full text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-blue-600 dark:focus:ring-blue-500 focus:border-transparent leading-relaxed text-sm transition-colors duration-200"
+                    className="w-full text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-indigo-600 dark:focus:ring-indigo-500 focus:border-transparent leading-relaxed text-sm transition-colors duration-200"
                     id="edit-summary-textarea"
                   />
                 ) : (
@@ -515,75 +515,75 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
               </div>
 
               {/* Grid for Key Points and Decisions */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-200 dark:border-slate-800" id="notes-grid">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-7 border-t border-slate-200/60 dark:border-slate-800/60" id="notes-grid">
                 
                 {/* Key Points */}
                 <div id="key-points-section">
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <ListChecks className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    Key Discussion Points
+                  <h3 className="text-[10px] font-bold text-slate-900 dark:text-white uppercase tracking-widest mb-5 flex items-center gap-2 select-none">
+                    <ListChecks className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    Discussion Points
                   </h3>
                   {meeting.notes?.keyPoints && meeting.notes.keyPoints.length > 0 ? (
-                    <ul className="space-y-2.5">
+                    <ul className="space-y-3.5">
                       {meeting.notes.keyPoints.map((point, idx) => (
-                        <li key={idx} className="flex gap-2.5 items-start text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 mt-2 flex-shrink-0" />
+                        <li key={idx} className="flex gap-3 items-start text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 mt-2 flex-shrink-0" />
                           {point}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-slate-400 dark:text-slate-500">No key points captured.</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-500 italic">No points captured.</p>
                   )}
                 </div>
 
                 {/* Decisions Made */}
                 <div id="decisions-section">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2 transition-colors duration-200">
-                    <CheckCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-[10px] font-bold text-slate-900 dark:text-white uppercase tracking-widest mb-5 flex items-center gap-2 select-none">
+                    <CheckCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     Decisions Made
                   </h3>
                   {meeting.notes?.decisions && meeting.notes.decisions.length > 0 ? (
                     <ul className="space-y-3">
                       {meeting.notes.decisions.map((decision, idx) => (
-                        <li key={idx} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded p-3.5 flex gap-3 text-sm text-slate-700 dark:text-slate-300 leading-relaxed transition-colors duration-200">
-                          <Check className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                        <li key={idx} className="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-4 flex gap-3.5 text-sm text-slate-700 dark:text-slate-300 leading-relaxed transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
+                          <Check className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                           {decision}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-slate-400 dark:text-slate-500">No explicit decisions recorded.</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-500 italic">No explicit decisions recorded.</p>
                   )}
                 </div>
               </div>
 
               {/* Action Items Checklist */}
               {meeting.notes?.actionItems && meeting.notes.actionItems.length > 0 && (
-                <div className="pt-6 border-t border-slate-200 dark:border-slate-800" id="action-items-section">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2 transition-colors duration-200">
-                    <ListChecks className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    Action Items & Checklists
+                <div className="pt-7 border-t border-slate-200/60 dark:border-slate-800/60" id="action-items-section">
+                  <h3 className="text-[10px] font-bold text-slate-900 dark:text-white uppercase tracking-widest mb-5 flex items-center gap-2 select-none">
+                    <ListChecks className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    Action Items checklist
                   </h3>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-1 gap-3">
                     {meeting.notes.actionItems.map((item, idx) => (
                       <div 
                         key={idx}
                         onClick={() => handleToggleActionItem(idx)}
-                        className={`flex items-start gap-3.5 p-4 rounded border transition-all cursor-pointer ${item.completed ? 'bg-slate-50/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-blue-300 dark:hover:border-blue-500'}`}
+                        className={`flex items-start gap-4 p-4.5 rounded-xl border transition-all cursor-pointer ${item.completed ? 'bg-slate-50/30 dark:bg-slate-950/20 border-slate-200/40 dark:border-slate-805/40 text-slate-400 dark:text-slate-500' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-indigo-300 dark:hover:border-indigo-800'}`}
                       >
-                        <button className="flex-shrink-0 mt-0.5 text-blue-600 dark:text-blue-400 cursor-pointer">
+                        <button className="flex-shrink-0 mt-0.5 text-indigo-600 dark:text-indigo-400 cursor-pointer">
                           {item.completed ? (
-                            <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400 fill-blue-50 dark:fill-blue-950/30" />
+                            <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400 fill-indigo-50/30 dark:fill-indigo-950/30" />
                           ) : (
-                            <Square className="w-5 h-5 text-slate-400 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400" />
+                            <Square className="w-5 h-5 text-slate-300 dark:text-slate-700 hover:text-indigo-500" />
                           )}
                         </button>
                         <div className="flex-grow text-sm leading-relaxed">
-                          <span className={item.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300'}>
+                          <span className={item.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300 font-medium'}>
                             {item.task}
                           </span>
-                          <span className={`inline-block text-xs px-2 py-0.5 rounded ml-3 font-mono transition-colors duration-200 ${item.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500' : 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-150 dark:border-blue-900/60 font-bold'}`}>
+                          <span className={`inline-block text-[9px] px-2.5 py-0.5 rounded-lg ml-3.5 font-mono tracking-wider transition-colors duration-200 ${item.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-150/40 dark:border-indigo-900/50 font-bold uppercase'}`}>
                             {item.assignee}
                           </span>
                         </div>
@@ -598,15 +598,15 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
           {activeTab === 'transcript' && (
             <div className="space-y-6" id="transcript-tab-content">
               {/* Controls bar (Search, Copy) */}
-              <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between pb-4 border-b border-slate-200/60 dark:border-slate-800/60">
                 <div className="relative flex-grow max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input 
                     type="text"
                     placeholder="Search words in transcript..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded pl-9 pr-4 py-2 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-600 dark:focus:ring-blue-500 focus:border-transparent transition-colors duration-200"
+                    className="w-full text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-600 dark:focus:ring-indigo-500 focus:border-transparent transition-colors duration-200"
                     id="transcript-search-input"
                   />
                 </div>
@@ -614,13 +614,13 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
                 <div className="flex items-center gap-3">
                   <button 
                     onClick={() => copyToClipboard(editTranscript)}
-                    className="px-4 py-2 text-sm font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="px-4.5 py-2.5 text-sm font-semibold border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl flex items-center gap-2 transition-all cursor-pointer"
                     id="copy-transcript-btn"
                   >
                     {isCopied ? (
                       <>
-                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        Copied!
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        Transcript Copied!
                       </>
                     ) : (
                       <>
@@ -633,13 +633,13 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
               </div>
 
               {/* Transcript Display Area */}
-              <div className="bg-[#FBFCFD] dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded p-6" id="transcript-text-area">
+              <div className="bg-slate-50/40 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-850 rounded-2xl p-6" id="transcript-text-area">
                 {isEditing ? (
                   <textarea 
                     value={editTranscript}
                     onChange={(e) => setEditTranscript(e.target.value)}
                     rows={12}
-                    className="w-full text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-blue-600 dark:focus:ring-blue-500 focus:border-transparent leading-relaxed text-sm font-mono transition-colors duration-200"
+                    className="w-full text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-indigo-600 dark:focus:ring-indigo-500 focus:border-transparent leading-relaxed text-sm font-mono transition-colors duration-200"
                     id="edit-transcript-textarea"
                   />
                 ) : (

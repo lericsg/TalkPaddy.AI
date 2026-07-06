@@ -6,17 +6,15 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+@variant dark (&:where(.dark, .dark *));
+
 body {
   font-family: var(--font-sans);
-  background-color: #F1F5F9;
-  color: #0f172a;
-  transition-property: color, background-color;
-  transition-duration: 200ms;
+  background-color: #F8FAFC;
 }
 
 html.dark body {
-  background-color: #090d16;
-  color: #f8fafc;
+  background-color: #020617;
 }
 
 /* Custom visual scrollbar */

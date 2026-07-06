@@ -33,6 +33,15 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
   const [realtimeTranscript, setRealtimeTranscript] = useState('');
   const [isSpeechRecognitionSupported, setIsSpeechRecognitionSupported] = useState(false);
 
+  // Retry states
+  const [retryParams, setRetryParams] = useState<{
+    audioBlob: Blob | null;
+    duration: number;
+    realtimeTranscript: string;
+  } | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState<number>(0);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -49,6 +58,10 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
   const recognitionRef = useRef<any>(null);
   const isRecordingRef = useRef(false);
   const isPausedRef = useRef(false);
+
+  // Refs to avoid stale closures inside async event callbacks
+  const durationRef = useRef<number>(0);
+  const realtimeTranscriptRef = useRef<string>('');
 
   // Automatically scroll the live transcript viewport as new text streams in
   useEffect(() => {
@@ -75,6 +88,23 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         console.error('Error enumerating audio devices:', err);
       });
   }, []);
+
+  // Cooldown countdown timer for rate limit reset
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    
+    const interval = window.setInterval(() => {
+      setCooldownSeconds(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [cooldownSeconds]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -172,7 +202,9 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
     chunksRef.current = [];
     setErrorMessage(null);
     setDuration(0);
+    durationRef.current = 0;
     setRealtimeTranscript('');
+    realtimeTranscriptRef.current = '';
     
     isRecordingRef.current = true;
     isPausedRef.current = false;
@@ -224,7 +256,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         const finalBlob = chunksRef.current.length > 0
           ? new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
           : null;
-        await handleRecordingFinish(finalBlob, duration);
+        await handleRecordingFinish(finalBlob, durationRef.current);
       };
 
       recorder.start(1000); // chunk every 1 second
@@ -263,6 +295,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
           
           const currentText = (accumulatedTranscript + interimText).trim();
           setRealtimeTranscript(currentText);
+          realtimeTranscriptRef.current = currentText;
         };
 
         rec.onerror = (event: any) => {
@@ -294,7 +327,11 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
     startVisualizer(stream);
 
     timerRef.current = window.setInterval(() => {
-      setDuration(prev => prev + 1);
+      setDuration(prev => {
+        const next = prev + 1;
+        durationRef.current = next;
+        return next;
+      });
     }, 1000);
   };
 
@@ -323,7 +360,11 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
       }
 
       timerRef.current = window.setInterval(() => {
-        setDuration(prev => prev + 1);
+        setDuration(prev => {
+          const next = prev + 1;
+          durationRef.current = next;
+          return next;
+        });
       }, 1000);
     } else {
       // Pausing
@@ -355,7 +396,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
       stopRecordingResources();
       setIsRecording(false);
     } else {
-      const totalDuration = duration;
+      const totalDuration = durationRef.current;
       stopRecordingResources();
       setIsRecording(false);
       handleRecordingFinish(null, totalDuration);
@@ -370,8 +411,10 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
     setIsPaused(false);
     setStatus('idle');
     setDuration(0);
+    durationRef.current = 0;
     chunksRef.current = [];
     setRealtimeTranscript('');
+    realtimeTranscriptRef.current = '';
   };
 
   const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -388,82 +431,64 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
   };
 
   const handleRecordingFinish = async (audioBlob: Blob | null, totalDuration: number) => {
-    try {
-      setStatus('transcribing');
-      setProgressText('Uploading and transcribing speech to text using Gemini 3.5 Flash...');
-      
-      let finalTranscript = '';
-      let usedRealtimeFallback = false;
+    // Keep parameters in state to support retries if any backend error occurs
+    setRetryParams({
+      audioBlob,
+      duration: totalDuration,
+      realtimeTranscript: realtimeTranscriptRef.current
+    });
 
-      // Try uploading and transcribing audio file if present
+    await executeProcessingAndSave(audioBlob, totalDuration, realtimeTranscriptRef.current);
+  };
+
+  const executeProcessingAndSave = async (
+    audioBlob: Blob | null, 
+    totalDuration: number, 
+    savedRealtimeTranscript: string
+  ) => {
+    try {
+      setErrorMessage(null);
+      setStatus('transcribing');
+      setProgressText('Uploading audio and generating full meeting intelligence with Gemini 3.5 Flash...');
+      
+      let base64Audio: string | null = null;
+      let mimeType: string | null = null;
+
       if (audioBlob && audioBlob.size > 0) {
         try {
-          const base64Audio = await blobToBase64(audioBlob);
-          
-          const transcribeRes = await fetch('/api/transcribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              audio: base64Audio,
-              mimeType: audioBlob.type
-            })
-          });
-
-          if (!transcribeRes.ok) {
-            const errData = await transcribeRes.json();
-            throw new Error(errData.error || 'Audio transcription endpoint failed');
-          }
-
-          const { transcript } = await transcribeRes.json();
-          finalTranscript = transcript || '';
-        } catch (audioErr) {
-          console.warn('Audio post-processing transcription failed. Fallback to live transcript.', audioErr);
-          if (realtimeTranscript && realtimeTranscript.trim() !== '') {
-            finalTranscript = realtimeTranscript;
-            usedRealtimeFallback = true;
-          } else {
-            throw audioErr;
-          }
-        }
-      } else {
-        // No audio blob recorded, use real-time transcript
-        if (realtimeTranscript && realtimeTranscript.trim() !== '') {
-          finalTranscript = realtimeTranscript;
-          usedRealtimeFallback = true;
-        } else {
-          throw new Error('No audio was recorded and no real-time transcript was captured. Please verify your microphone is connected and try again.');
+          base64Audio = await blobToBase64(audioBlob);
+          mimeType = audioBlob.type;
+        } catch (err) {
+          console.error("Failed to read audio blob:", err);
         }
       }
 
-      // If audio transcription succeeded but was empty, check live transcript
-      if (!finalTranscript || finalTranscript.trim() === '') {
-        if (realtimeTranscript && realtimeTranscript.trim() !== '') {
-          finalTranscript = realtimeTranscript;
-          usedRealtimeFallback = true;
-        } else {
-          throw new Error('No clear speech was detected in the recording. Please try speaking closer to the microphone.');
-        }
+      // Check if we have neither audio nor draft transcript
+      if (!base64Audio && (!savedRealtimeTranscript || savedRealtimeTranscript.trim() === '')) {
+        throw new Error('No audio was recorded and no real-time transcript was captured. Please verify your microphone is connected and try again.');
       }
 
-      // Step 2: Summarize and extract meeting notes
-      setStatus('summarizing');
-      setProgressText(usedRealtimeFallback 
-        ? 'Analyzing live-captured transcript to generate structured notes, action items, and decisions...'
-        : 'Analyzing transcript to generate structured notes, action items, and decisions...'
-      );
+      // If we only have draft transcript and no audio, update progress text
+      if (!base64Audio) {
+        setProgressText('Refining live-captured transcript and generating structured notes with Gemini...');
+      }
 
-      const summarizeRes = await fetch('/api/summarize', {
+      const processRes = await fetch('/api/process-meeting', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: finalTranscript })
+        body: JSON.stringify({
+          audio: base64Audio || undefined,
+          mimeType: mimeType || undefined,
+          realtimeTranscript: savedRealtimeTranscript || undefined
+        })
       });
 
-      if (!summarizeRes.ok) {
-        const errData = await summarizeRes.json();
-        throw new Error(errData.error || 'AI meeting summarization failed');
+      if (!processRes.ok) {
+        const errData = await processRes.json();
+        throw new Error(errData.error || 'AI meeting processing failed');
       }
 
-      const { notes } = await summarizeRes.json();
+      const { notes } = await processRes.json();
 
       // Step 3: Package complete meeting details
       setStatus('completed');
@@ -474,16 +499,50 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         date: new Date().toISOString(),
         duration: totalDuration,
         audioBlob: audioBlob || undefined,
-        transcript: finalTranscript,
-        notes: notes,
+        transcript: notes.transcript || savedRealtimeTranscript || '',
+        notes: {
+          title: notes.title || `Meeting - ${new Date().toLocaleDateString()}`,
+          summary: notes.summary || '',
+          keyPoints: notes.keyPoints || [],
+          decisions: notes.decisions || [],
+          actionItems: notes.actionItems || [],
+          tags: notes.tags || []
+        },
         createdAt: Date.now()
       };
 
-      onMeetingSaved(newMeeting);
+      await onMeetingSaved(newMeeting);
+      
+      // Successfully saved! Clear the retry parameters and cooldowns
+      setRetryParams(null);
+      setCooldownSeconds(0);
 
     } catch (err: any) {
       console.error('Error post-processing recording:', err);
-      setErrorMessage(err.message || 'An unexpected error occurred during transcription processing.');
+      const rawMessage = err.message || 'An unexpected connection or processing error occurred.';
+      
+      // Check if it is a quota or rate-limit error (Status 429 / RESOURCE_EXHAUSTED)
+      const isQuotaError = 
+        rawMessage.toLowerCase().includes('quota') || 
+        rawMessage.toLowerCase().includes('rate-limit') || 
+        rawMessage.toLowerCase().includes('429') || 
+        rawMessage.toLowerCase().includes('resource_exhausted') ||
+        rawMessage.toLowerCase().includes('exceeded your current quota');
+
+      if (isQuotaError) {
+        // Parse custom seconds to wait if returned by the API
+        const secondsMatch = rawMessage.match(/Please retry in ([\d\.]+)s/i);
+        let extractedSeconds = 60; // default to 60 seconds
+        if (secondsMatch && secondsMatch[1]) {
+          extractedSeconds = Math.ceil(parseFloat(secondsMatch[1]));
+        }
+        
+        setCooldownSeconds(extractedSeconds);
+        setErrorMessage(`You have temporarily exceeded the Gemini API's free-tier rate limits. Please wait ${extractedSeconds} seconds for your quota to reset. Your meeting data has been kept completely safe! Just click "Retry Processing & Save" once the timer runs out.`);
+      } else {
+        setErrorMessage(rawMessage);
+      }
+      
       setStatus('idle');
     }
   };
@@ -550,68 +609,120 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
 
       {/* Error Message */}
       {errorMessage && (
-        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 rounded p-4 flex gap-3 text-red-800 dark:text-red-200 text-sm mb-6" id="error-banner">
-          <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
-          <div>
-            <p className="font-bold">Recording Error</p>
-            <p className="text-red-700/95 dark:text-red-300 mt-1 leading-relaxed">{errorMessage}</p>
+        <div className="bg-rose-50/50 dark:bg-rose-950/20 border border-rose-150/60 dark:border-rose-900/40 rounded-2xl p-6 flex flex-col gap-4 text-rose-800 dark:text-rose-200 text-sm mb-8 shadow-sm transition-colors duration-200 animate-fade-in" id="error-banner">
+          <div className="flex gap-4">
+            <AlertCircle className="w-5.5 h-5.5 flex-shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-bold flex items-center gap-2 text-slate-900 dark:text-white text-base">
+                <span>{cooldownSeconds > 0 ? 'Quota Limit Reached' : 'Recording Error'}</span>
+                {cooldownSeconds > 0 && (
+                  <span className="px-2.5 py-0.5 bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 text-[9px] font-bold font-mono rounded-lg animate-pulse uppercase tracking-wider">
+                    Cooldown: {cooldownSeconds}s
+                  </span>
+                )}
+              </p>
+              <p className="text-slate-600 dark:text-slate-350 mt-1.5 leading-relaxed text-xs">
+                {cooldownSeconds > 0 
+                  ? `You have temporarily reached the free-tier rate limits for the Gemini API. Please wait about ${cooldownSeconds} more seconds for the quota to reset. Your recorded audio remains fully intact and safe—you won't lose your meeting details!`
+                  : errorMessage
+                }
+              </p>
+            </div>
           </div>
+          {retryParams && (
+            <div className="flex justify-end gap-3 pt-4 border-t border-rose-100/40 dark:border-rose-900/30">
+              <button
+                onClick={async () => {
+                  setIsRetrying(true);
+                  await executeProcessingAndSave(retryParams.audioBlob, retryParams.duration, retryParams.realtimeTranscript);
+                  setIsRetrying(false);
+                }}
+                disabled={isRetrying || cooldownSeconds > 0}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500 font-bold rounded-xl text-xs uppercase tracking-widest flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed text-white select-none"
+                id="retry-processing-btn"
+              >
+                {isRetrying ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Processing...
+                  </>
+                ) : cooldownSeconds > 0 ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Retry in {cooldownSeconds}s
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Retry Processing & Save
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Recording Stage Visualizers */}
-      <div className="flex flex-col items-center justify-center py-6">
+      <div className="flex flex-col items-center justify-center py-8">
         
         {status === 'idle' && (
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={startRecording}
-            className="w-24 h-24 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 shadow-md focus:outline-none transition-all duration-300 cursor-pointer"
-            title="Start Recording"
-            id="start-recording-btn"
-          >
-            <Mic className="w-10 h-10 animate-pulse text-white/95" />
-          </motion.button>
+          <div className="relative group" id="start-recording-container">
+            {/* Pulsing visual halo backgrounds */}
+            <div className="absolute -inset-4 bg-indigo-500/10 dark:bg-indigo-400/5 rounded-full blur-xl group-hover:scale-110 transition-transform duration-500" />
+            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full blur opacity-30 group-hover:opacity-45 transition-all duration-300" />
+            
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={startRecording}
+              className="w-26 h-26 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 shadow-xl shadow-indigo-500/20 focus:outline-none transition-all duration-300 cursor-pointer relative z-10"
+              title="Start Recording"
+              id="start-recording-btn"
+            >
+              <Mic className="w-11 h-11 text-white/95" />
+            </motion.button>
+          </div>
         )}
 
         {status === 'recording' && (
-          <div className="w-full flex flex-col items-center" id="recording-active-area">
-            <div className="text-4xl font-mono tracking-wider text-slate-800 dark:text-slate-100 font-bold mb-4" id="timer-display">
+          <div className="w-full flex flex-col items-center animate-fade-in" id="recording-active-area">
+            <div className="text-5xl font-mono tracking-widest text-slate-900 dark:text-white font-black mb-6 flex items-center gap-3" id="timer-display">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
               {formatTime(duration)}
             </div>
             
             {/* Visualizer Canvas */}
-            <div className="w-full bg-[#FBFCFD] dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded p-2 mb-6">
+            <div className="w-full bg-slate-50/50 dark:bg-slate-950/30 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-3 mb-6 shadow-inner">
               <canvas ref={canvasRef} className="w-full h-[120px] block" />
             </div>
 
             {/* Live Real-time Transcription Feed */}
-            <div className="w-full bg-[#FBFCFD] dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded p-4 mb-6 transition-colors duration-200">
-              <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 mb-6 shadow-sm transition-colors duration-200">
+              <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-200/50 dark:border-slate-800/50">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2 select-none">
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
                   </span>
-                  Live Transcript Feed
+                  Live stream
                 </span>
                 {isSpeechRecognitionSupported ? (
-                  <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-900/40">
-                    LIVE MIC FEED
+                  <span className="text-[8px] font-mono text-indigo-600 dark:text-indigo-400 font-extrabold uppercase bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-lg border border-indigo-100/50 dark:border-indigo-900/40 tracking-wider">
+                    RECOGNITION ACTIVE
                   </span>
                 ) : (
-                  <span className="text-[9px] font-mono text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-100 dark:border-amber-900/40">
-                    GEMINI AI POST-PROCESS
+                  <span className="text-[8px] font-mono text-amber-600 dark:text-amber-400 font-extrabold uppercase bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-lg border border-amber-100/50 dark:border-amber-900/40 tracking-wider">
+                    AI SYNTHESIS ONLY
                   </span>
                 )}
               </div>
-              <div className="h-[120px] overflow-y-auto text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-sans text-left pr-1 scroll-smooth" id="live-transcript-scroll-area">
+              <div className="h-[120px] overflow-y-auto text-sm text-slate-600 dark:text-slate-350 leading-relaxed font-sans text-left pr-1 scroll-smooth" id="live-transcript-scroll-area">
                 {realtimeTranscript ? (
                   <p className="whitespace-pre-wrap">{realtimeTranscript}</p>
                 ) : (
-                  <p className="text-slate-400 dark:text-slate-500 italic text-center py-8">
-                    Listening... Start speaking to see live transcription.
+                  <p className="text-slate-400 dark:text-slate-500 italic text-center py-10">
+                    Listening... Speak now to transcribe live.
                   </p>
                 )}
               </div>
@@ -623,29 +734,29 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={pauseRecording}
-                className="w-12 h-12 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer"
+                className="w-13 h-13 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-850 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer shadow-sm"
                 title={isPaused ? "Resume Recording" : "Pause Recording"}
                 id="pause-resume-btn"
               >
-                {isPaused ? <Play className="w-5 h-5 text-slate-900 dark:text-white fill-slate-900 dark:fill-white" /> : <Pause className="w-5 h-5 text-slate-700 dark:text-slate-300" />}
+                {isPaused ? <Play className="w-5 h-5 text-indigo-600 dark:text-indigo-400 fill-indigo-600 dark:fill-indigo-400" /> : <Pause className="w-5 h-5 text-slate-700 dark:text-slate-300" />}
               </motion.button>
 
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={stopRecording}
-                className="px-6 h-12 rounded bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-750 text-white font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                className="px-8 h-13 rounded-2xl bg-red-600 hover:bg-red-750 text-white font-bold flex items-center justify-center gap-2.5 shadow-md shadow-red-500/15 transition-all cursor-pointer uppercase text-xs tracking-widest"
                 id="stop-recording-btn"
               >
                 <Square className="w-4 h-4 text-white fill-white" />
-                Stop & Transcribe
+                Stop Recording
               </motion.button>
 
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={cancelRecording}
-                className="w-12 h-12 rounded border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/60 transition-all cursor-pointer"
+                className="w-13 h-13 rounded-2xl border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all cursor-pointer shadow-sm"
                 title="Cancel Recording"
                 id="cancel-recording-btn"
               >
@@ -657,40 +768,41 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
 
         {/* Loading and AI Processing State */}
         {(status === 'transcribing' || status === 'summarizing') && (
-          <div className="w-full py-6 flex flex-col items-center justify-center text-center" id="processing-loader">
+          <div className="w-full py-8 flex flex-col items-center justify-center text-center animate-fade-in" id="processing-loader">
             <div className="relative mb-6">
-              <div className="absolute inset-0 bg-blue-100 dark:bg-blue-900 rounded-full animate-ping opacity-25"></div>
-              <div className="relative w-16 h-16 rounded bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900/50 flex items-center justify-center">
+              <div className="absolute -inset-4 bg-indigo-100 dark:bg-indigo-900/20 rounded-full animate-pulse opacity-35"></div>
+              <div className="absolute inset-0 bg-indigo-100 dark:bg-indigo-900 rounded-full animate-ping opacity-20"></div>
+              <div className="relative w-18 h-18 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-center">
                 {status === 'transcribing' ? (
-                  <AudioLines className="w-7 h-7 text-blue-600 dark:text-blue-400 animate-pulse" />
+                  <AudioLines className="w-8 h-8 text-indigo-600 dark:text-indigo-400 animate-pulse" />
                 ) : (
-                  <RefreshCw className="w-7 h-7 text-blue-600 dark:text-blue-400 animate-spin" />
+                  <RefreshCw className="w-8 h-8 text-indigo-600 dark:text-indigo-400 animate-spin" />
                 )}
               </div>
             </div>
             
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
-              {status === 'transcribing' ? 'Transcribing Audio' : 'Synthesizing Smart Notes'}
+            <h3 className="text-xl font-black text-slate-950 dark:text-white uppercase tracking-tight">
+              {status === 'transcribing' ? 'Converting Speech' : 'Synthesizing Smart Notes'}
             </h3>
             
-            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mt-2 leading-relaxed px-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-3.5 leading-relaxed px-4">
               {progressText}
             </p>
           </div>
         )}
 
         {status === 'idle' && (
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-6 font-semibold uppercase tracking-wider font-mono" id="tap-to-record-prompt">
-            Click the microphone to begin recording
+          <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-8 font-extrabold uppercase tracking-widest font-mono select-none" id="tap-to-record-prompt">
+            TAP MICROPHONE TO BEGIN RECORDING
           </p>
         )}
       </div>
 
       {status === 'idle' && (
-        <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+        <div className="mt-8 pt-6 border-t border-slate-200/60 dark:border-slate-800/60 flex justify-end">
           <button 
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded transition-all cursor-pointer"
+            className="px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl transition-all cursor-pointer"
             id="recorder-cancel-btn"
           >
             Cancel
@@ -700,3 +812,4 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
     </div>
   );
 }
+
