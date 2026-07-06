@@ -14,7 +14,7 @@ import MeetingRecorder from './components/MeetingRecorder';
 import MeetingDetails from './components/MeetingDetails';
 import { 
   Sparkles, FileText, CheckSquare, CalendarDays, 
-  Clock, Mic, Database, Loader2 
+  Clock, Mic, Database, Loader2, Sun, Moon 
 } from 'lucide-react';
 
 export default function App() {
@@ -22,6 +22,24 @@ export default function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Dark mode theme selection
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('theme');
+    return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
 
   // Load meetings from IndexedDB on startup
   useEffect(() => {
@@ -93,27 +111,36 @@ export default function App() {
   }, 0);
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] text-slate-900 selection:bg-blue-600 selection:text-white" id="app-root">
+    <div className="min-h-screen bg-[#F1F5F9] dark:bg-slate-950 text-slate-900 dark:text-slate-100 selection:bg-blue-600 selection:text-white transition-colors duration-200" id="app-root">
       {/* Navigation Topbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40" id="main-header">
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 transition-colors duration-200" id="main-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div 
             onClick={() => { setView('history'); setSelectedMeeting(null); }}
             className="flex items-center gap-2.5 cursor-pointer group"
             id="logo-brand"
           >
-            <div className="w-8 h-8 bg-blue-600 rounded-sm flex items-center justify-center text-white font-bold transition-all group-hover:scale-105">
+            <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded-sm flex items-center justify-center text-white font-bold transition-all group-hover:scale-105">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold tracking-tight text-slate-900 text-lg uppercase">
-              Meeting Notes <span className="text-blue-600 font-bold">AI</span>
+            <span className="font-bold tracking-tight text-slate-900 dark:text-white text-lg uppercase">
+              Meeting Notes <span className="text-blue-600 dark:text-blue-400 font-bold">AI</span>
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-slate-500 font-semibold bg-slate-100 border border-slate-200 rounded px-2.5 py-1 flex items-center gap-1.5" id="sandbox-indicator">
-              <Database className="w-3.5 h-3.5 text-slate-500" />
-              IndexedDB Storage
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="p-2 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded transition-all cursor-pointer"
+              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              id="theme-toggle-btn"
+            >
+              {isDarkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600" />}
+            </button>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2.5 py-1.5 flex items-center gap-1.5" id="sandbox-indicator">
+              <Database className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+              <span className="hidden sm:inline">IndexedDB Storage</span>
+              <span className="sm:hidden">Local</span>
             </span>
           </div>
         </div>
@@ -137,33 +164,33 @@ export default function App() {
                 className="grid grid-cols-1 sm:grid-cols-3 gap-4"
                 id="metrics-dashboard"
               >
-                <div className="bg-white border border-slate-200 rounded p-4 flex items-center gap-4 shadow-sm">
-                  <div className="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-blue-600">
-                    <CalendarDays className="w-5 h-5 text-blue-600" />
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-4 flex items-center gap-4 shadow-sm transition-colors duration-200">
+                  <div className="w-10 h-10 rounded bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <CalendarDays className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Meetings</div>
-                    <div className="text-xl font-bold text-slate-950">{meetings.length}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider">Total Meetings</div>
+                    <div className="text-xl font-bold text-slate-950 dark:text-slate-50">{meetings.length}</div>
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded p-4 flex items-center gap-4 shadow-sm">
-                  <div className="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-blue-600">
-                    <Clock className="w-5 h-5 text-blue-600" />
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-4 flex items-center gap-4 shadow-sm transition-colors duration-200">
+                  <div className="w-10 h-10 rounded bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Recorded Hours</div>
-                    <div className="text-xl font-bold text-slate-950">{formatTotalTime(totalDuration)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider">Total Recorded Hours</div>
+                    <div className="text-xl font-bold text-slate-950 dark:text-slate-50">{formatTotalTime(totalDuration)}</div>
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded p-4 flex items-center gap-4 shadow-sm">
-                  <div className="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-blue-600">
-                    <CheckSquare className="w-5 h-5 text-blue-600" />
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-4 flex items-center gap-4 shadow-sm transition-colors duration-200">
+                  <div className="w-10 h-10 rounded bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Pending Tasks</div>
-                    <div className="text-xl font-bold text-slate-950">{pendingActionItemsCount}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider">Pending Tasks</div>
+                    <div className="text-xl font-bold text-slate-950 dark:text-slate-50">{pendingActionItemsCount}</div>
                   </div>
                 </div>
               </motion.div>

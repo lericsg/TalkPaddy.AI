@@ -327,13 +327,13 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
   };
 
   return (
-    <div className="bg-white rounded border border-slate-200 shadow-sm p-6 md:p-8 max-w-xl mx-auto" id="recorder-container">
+    <div className="bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8 max-w-xl mx-auto transition-colors duration-200" id="recorder-container">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 uppercase" id="recorder-title">
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white uppercase" id="recorder-title">
             Record New Meeting
           </h2>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Capture audio dynamically for instant transcripts and summaries.
           </p>
         </div>
@@ -341,7 +341,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         {devices.length > 0 && !isRecording && (
           <button 
             onClick={() => setShowSettings(!showSettings)}
-            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded transition-all"
+            className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded transition-all cursor-pointer"
             title="Microphone Settings"
             id="mic-settings-btn"
           >
@@ -357,16 +357,16 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden border-b border-slate-200 pb-4 mb-4"
+            className="overflow-hidden border-b border-slate-200 dark:border-slate-800 pb-4 mb-4"
             id="settings-panel"
           >
-            <label className="block text-xs font-semibold text-slate-600 mb-2">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">
               Select Recording Microphone
             </label>
             <select 
               value={selectedDeviceId}
               onChange={(e) => setSelectedDeviceId(e.target.value)}
-              className="w-full text-sm bg-slate-50 border border-slate-200 rounded px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600 focus:border-transparent"
+              className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-600 focus:border-transparent transition-colors duration-200"
               id="mic-select"
             >
               {devices.map(device => (
@@ -381,11 +381,11 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
 
       {/* Error Message */}
       {errorMessage && (
-        <div className="bg-red-50 border border-red-200 rounded p-4 flex gap-3 text-red-800 text-sm mb-6" id="error-banner">
-          <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600 mt-0.5" />
+        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 rounded p-4 flex gap-3 text-red-800 dark:text-red-200 text-sm mb-6" id="error-banner">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
           <div>
             <p className="font-bold">Recording Error</p>
-            <p className="text-red-700/95 mt-1 leading-relaxed">{errorMessage}</p>
+            <p className="text-red-700/95 dark:text-red-300 mt-1 leading-relaxed">{errorMessage}</p>
           </div>
         </div>
       )}
@@ -398,7 +398,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={startRecording}
-            className="w-24 h-24 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 shadow-md focus:outline-none transition-all duration-300"
+            className="w-24 h-24 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 shadow-md focus:outline-none transition-all duration-300 cursor-pointer"
             title="Start Recording"
             id="start-recording-btn"
           >
@@ -408,12 +408,12 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
 
         {status === 'recording' && (
           <div className="w-full flex flex-col items-center" id="recording-active-area">
-            <div className="text-4xl font-mono tracking-wider text-slate-800 font-bold mb-4" id="timer-display">
+            <div className="text-4xl font-mono tracking-wider text-slate-800 dark:text-slate-100 font-bold mb-4" id="timer-display">
               {formatTime(duration)}
             </div>
             
             {/* Visualizer Canvas */}
-            <div className="w-full bg-[#FBFCFD] border border-slate-200 rounded p-2 mb-6">
+            <div className="w-full bg-[#FBFCFD] dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded p-2 mb-6">
               <canvas ref={canvasRef} className="w-full h-[120px] block" />
             </div>
 
@@ -423,18 +423,18 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={pauseRecording}
-                className="w-12 h-12 rounded border border-slate-200 text-slate-700 bg-white flex items-center justify-center hover:bg-slate-50 hover:text-slate-900 transition-all"
+                className="w-12 h-12 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer"
                 title={isPaused ? "Resume Recording" : "Pause Recording"}
                 id="pause-resume-btn"
               >
-                {isPaused ? <Play className="w-5 h-5 text-slate-900 fill-slate-900" /> : <Pause className="w-5 h-5 text-slate-700" />}
+                {isPaused ? <Play className="w-5 h-5 text-slate-900 dark:text-white fill-slate-900 dark:fill-white" /> : <Pause className="w-5 h-5 text-slate-700 dark:text-slate-300" />}
               </motion.button>
 
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={stopRecording}
-                className="px-6 h-12 rounded bg-slate-900 hover:bg-slate-800 text-white font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                className="px-6 h-12 rounded bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-750 text-white font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
                 id="stop-recording-btn"
               >
                 <Square className="w-4 h-4 text-white fill-white" />
@@ -445,7 +445,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={cancelRecording}
-                className="w-12 h-12 rounded border border-red-200 text-red-600 bg-red-50 flex items-center justify-center hover:bg-red-100 transition-all"
+                className="w-12 h-12 rounded border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/60 transition-all cursor-pointer"
                 title="Cancel Recording"
                 id="cancel-recording-btn"
               >
@@ -459,38 +459,38 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         {(status === 'transcribing' || status === 'summarizing') && (
           <div className="w-full py-6 flex flex-col items-center justify-center text-center" id="processing-loader">
             <div className="relative mb-6">
-              <div className="absolute inset-0 bg-blue-100 rounded-full animate-ping opacity-25"></div>
-              <div className="relative w-16 h-16 rounded bg-blue-50 border border-blue-100 flex items-center justify-center">
+              <div className="absolute inset-0 bg-blue-100 dark:bg-blue-900 rounded-full animate-ping opacity-25"></div>
+              <div className="relative w-16 h-16 rounded bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900/50 flex items-center justify-center">
                 {status === 'transcribing' ? (
-                  <AudioLines className="w-7 h-7 text-blue-600 animate-pulse" />
+                  <AudioLines className="w-7 h-7 text-blue-600 dark:text-blue-400 animate-pulse" />
                 ) : (
-                  <RefreshCw className="w-7 h-7 text-blue-600 animate-spin" />
+                  <RefreshCw className="w-7 h-7 text-blue-600 dark:text-blue-400 animate-spin" />
                 )}
               </div>
             </div>
             
-            <h3 className="text-lg font-bold text-slate-900 uppercase tracking-tight">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
               {status === 'transcribing' ? 'Transcribing Audio' : 'Synthesizing Smart Notes'}
             </h3>
             
-            <p className="text-sm text-slate-500 max-w-sm mt-2 leading-relaxed px-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mt-2 leading-relaxed px-4">
               {progressText}
             </p>
           </div>
         )}
 
         {status === 'idle' && (
-          <p className="text-xs text-slate-400 mt-6 font-semibold uppercase tracking-wider font-mono" id="tap-to-record-prompt">
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-6 font-semibold uppercase tracking-wider font-mono" id="tap-to-record-prompt">
             Click the microphone to begin recording
           </p>
         )}
       </div>
 
       {status === 'idle' && (
-        <div className="mt-6 pt-6 border-t border-slate-200 flex justify-end">
+        <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-end">
           <button 
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 rounded transition-all"
+            className="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded transition-all cursor-pointer"
             id="recorder-cancel-btn"
           >
             Cancel
