@@ -29,6 +29,10 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
   const [status, setStatus] = useState<'idle' | 'recording' | 'transcribing' | 'summarizing' | 'completed'>('idle');
   const [progressText, setProgressText] = useState('');
 
+  // Live real-time transcription states
+  const [realtimeTranscript, setRealtimeTranscript] = useState('');
+  const [isSpeechRecognitionSupported, setIsSpeechRecognitionSupported] = useState(false);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -41,8 +45,24 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
+  // SpeechRecognition instance and status trackers for restart cycle
+  const recognitionRef = useRef<any>(null);
+  const isRecordingRef = useRef(false);
+  const isPausedRef = useRef(false);
+
+  // Automatically scroll the live transcript viewport as new text streams in
+  useEffect(() => {
+    const scrollArea = document.getElementById('live-transcript-scroll-area');
+    if (scrollArea) {
+      scrollArea.scrollTop = scrollArea.scrollHeight;
+    }
+  }, [realtimeTranscript]);
+
   // Load available microphone devices
   useEffect(() => {
+    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setIsSpeechRecognitionSupported(!!SpeechRecognitionClass);
+
     navigator.mediaDevices.enumerateDevices()
       .then(deviceInfos => {
         const audioInputs = deviceInfos.filter(device => device.kind === 'audioinput');
@@ -64,6 +84,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
   }, []);
 
   const stopRecordingResources = () => {
+    isRecordingRef.current = false;
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -75,6 +96,14 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
     }
     if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
       audioCtxRef.current.close();
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.warn('Failed to stop speech recognition during resource cleanup:', e);
+      }
+      recognitionRef.current = null;
     }
   };
 
@@ -143,15 +172,33 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
     chunksRef.current = [];
     setErrorMessage(null);
     setDuration(0);
+    setRealtimeTranscript('');
     
+    isRecordingRef.current = true;
+    isPausedRef.current = false;
+
     const constraints: MediaStreamConstraints = {
       audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
     };
 
+    let stream: MediaStream | null = null;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
-      
+    } catch (err: any) {
+      console.error('Failed to access microphone:', err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setErrorMessage('Microphone access denied. Please grant microphone permissions in your browser to record.');
+      } else {
+        setErrorMessage('Failed to start recording. Please verify your selected microphone is connected.');
+      }
+      setStatus('idle');
+      return;
+    }
+
+    // Try starting MediaRecorder for audio file generation
+    try {
       // Determine recording format
       let mimeType = 'audio/webm';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
@@ -174,68 +221,157 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
       };
 
       recorder.onstop = async () => {
-        const finalBlob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const finalBlob = chunksRef.current.length > 0
+          ? new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+          : null;
         await handleRecordingFinish(finalBlob, duration);
       };
 
       recorder.start(1000); // chunk every 1 second
-      setIsRecording(true);
+    } catch (recErr) {
+      console.warn('MediaRecorder failed to initialize, continuing with live SpeechRecognition only:', recErr);
+      mediaRecorderRef.current = null;
+    }
+
+    // Initialize and start SpeechRecognition for live transcription
+    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognitionClass) {
+      try {
+        const rec = new SpeechRecognitionClass();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = 'en-US';
+
+        let accumulatedTranscript = '';
+
+        rec.onresult = (event: any) => {
+          let interimText = '';
+          let finalText = '';
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const result = event.results[i];
+            if (result.isFinal) {
+              finalText += result[0].transcript + ' ';
+            } else {
+              interimText += result[0].transcript;
+            }
+          }
+
+          if (finalText) {
+            accumulatedTranscript += finalText;
+          }
+          
+          const currentText = (accumulatedTranscript + interimText).trim();
+          setRealtimeTranscript(currentText);
+        };
+
+        rec.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+        };
+
+        rec.onend = () => {
+          // Restart if recording is active and not paused
+          if (isRecordingRef.current && !isPausedRef.current) {
+            try {
+              rec.start();
+            } catch (e) {
+              console.error('Failed to restart SpeechRecognition:', e);
+            }
+          }
+        };
+
+        recognitionRef.current = rec;
+        rec.start();
+      } catch (speechErr) {
+        console.error('SpeechRecognition start failed:', speechErr);
+      }
+    }
+
+    setIsRecording(true);
+    setIsPaused(false);
+    setStatus('recording');
+    
+    startVisualizer(stream);
+
+    timerRef.current = window.setInterval(() => {
+      setDuration(prev => prev + 1);
+    }, 1000);
+  };
+
+  const pauseRecording = () => {
+    if (!isRecording) return;
+
+    if (isPaused) {
+      // Resuming
+      isPausedRef.current = false;
       setIsPaused(false);
-      setStatus('recording');
       
-      startVisualizer(stream);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+        mediaRecorderRef.current.resume();
+      }
+      
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+      
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (e) {
+          console.warn('Failed to resume SpeechRecognition:', e);
+        }
+      }
 
       timerRef.current = window.setInterval(() => {
         setDuration(prev => prev + 1);
       }, 1000);
-
-    } catch (err: any) {
-      console.error('Failed to access microphone:', err);
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setErrorMessage('Microphone access denied. Please grant microphone permissions in your browser to record.');
-      } else {
-        setErrorMessage('Failed to start recording. Please verify your selected microphone is connected.');
-      }
-      setStatus('idle');
-    }
-  };
-
-  const pauseRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      if (isPaused) {
-        mediaRecorderRef.current.resume();
-        setIsPaused(false);
-        if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-          audioCtxRef.current.resume();
-        }
-        timerRef.current = window.setInterval(() => {
-          setDuration(prev => prev + 1);
-        }, 1000);
-      } else {
+    } else {
+      // Pausing
+      isPausedRef.current = true;
+      setIsPaused(true);
+      
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.pause();
-        setIsPaused(true);
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
+      }
+      
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.warn('Failed to pause SpeechRecognition:', e);
         }
+      }
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
       }
     }
   };
 
   const stopRecording = () => {
+    isRecordingRef.current = false;
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       stopRecordingResources();
       setIsRecording(false);
+    } else {
+      const totalDuration = duration;
+      stopRecordingResources();
+      setIsRecording(false);
+      handleRecordingFinish(null, totalDuration);
     }
   };
 
   const cancelRecording = () => {
+    isRecordingRef.current = false;
+    isPausedRef.current = false;
     stopRecordingResources();
     setIsRecording(false);
     setIsPaused(false);
     setStatus('idle');
     setDuration(0);
     chunksRef.current = [];
+    setRealtimeTranscript('');
   };
 
   const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -251,42 +387,75 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
     });
   };
 
-  const handleRecordingFinish = async (audioBlob: Blob, totalDuration: number) => {
+  const handleRecordingFinish = async (audioBlob: Blob | null, totalDuration: number) => {
     try {
       setStatus('transcribing');
       setProgressText('Uploading and transcribing speech to text using Gemini 3.5 Flash...');
       
-      const base64Audio = await blobToBase64(audioBlob);
-      
-      // Step 1: Transcribe audio
-      const transcribeRes = await fetch('/api/transcribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audio: base64Audio,
-          mimeType: audioBlob.type
-        })
-      });
+      let finalTranscript = '';
+      let usedRealtimeFallback = false;
 
-      if (!transcribeRes.ok) {
-        const errData = await transcribeRes.json();
-        throw new Error(errData.error || 'Audio transcription endpoint failed');
+      // Try uploading and transcribing audio file if present
+      if (audioBlob && audioBlob.size > 0) {
+        try {
+          const base64Audio = await blobToBase64(audioBlob);
+          
+          const transcribeRes = await fetch('/api/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              audio: base64Audio,
+              mimeType: audioBlob.type
+            })
+          });
+
+          if (!transcribeRes.ok) {
+            const errData = await transcribeRes.json();
+            throw new Error(errData.error || 'Audio transcription endpoint failed');
+          }
+
+          const { transcript } = await transcribeRes.json();
+          finalTranscript = transcript || '';
+        } catch (audioErr) {
+          console.warn('Audio post-processing transcription failed. Fallback to live transcript.', audioErr);
+          if (realtimeTranscript && realtimeTranscript.trim() !== '') {
+            finalTranscript = realtimeTranscript;
+            usedRealtimeFallback = true;
+          } else {
+            throw audioErr;
+          }
+        }
+      } else {
+        // No audio blob recorded, use real-time transcript
+        if (realtimeTranscript && realtimeTranscript.trim() !== '') {
+          finalTranscript = realtimeTranscript;
+          usedRealtimeFallback = true;
+        } else {
+          throw new Error('No audio was recorded and no real-time transcript was captured. Please verify your microphone is connected and try again.');
+        }
       }
 
-      const { transcript } = await transcribeRes.json();
-
-      if (!transcript || transcript.trim() === '') {
-        throw new Error('No clear speech was detected in the recording. Please try speaking closer to the microphone.');
+      // If audio transcription succeeded but was empty, check live transcript
+      if (!finalTranscript || finalTranscript.trim() === '') {
+        if (realtimeTranscript && realtimeTranscript.trim() !== '') {
+          finalTranscript = realtimeTranscript;
+          usedRealtimeFallback = true;
+        } else {
+          throw new Error('No clear speech was detected in the recording. Please try speaking closer to the microphone.');
+        }
       }
 
       // Step 2: Summarize and extract meeting notes
       setStatus('summarizing');
-      setProgressText('Analyzing transcript to generate structured notes, action items, and decisions...');
+      setProgressText(usedRealtimeFallback 
+        ? 'Analyzing live-captured transcript to generate structured notes, action items, and decisions...'
+        : 'Analyzing transcript to generate structured notes, action items, and decisions...'
+      );
 
       const summarizeRes = await fetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript })
+        body: JSON.stringify({ transcript: finalTranscript })
       });
 
       if (!summarizeRes.ok) {
@@ -304,8 +473,8 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         title: notes.title || `Meeting - ${new Date().toLocaleDateString()}`,
         date: new Date().toISOString(),
         duration: totalDuration,
-        audioBlob: audioBlob,
-        transcript: transcript,
+        audioBlob: audioBlob || undefined,
+        transcript: finalTranscript,
         notes: notes,
         createdAt: Date.now()
       };
@@ -415,6 +584,37 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
             {/* Visualizer Canvas */}
             <div className="w-full bg-[#FBFCFD] dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded p-2 mb-6">
               <canvas ref={canvasRef} className="w-full h-[120px] block" />
+            </div>
+
+            {/* Live Real-time Transcription Feed */}
+            <div className="w-full bg-[#FBFCFD] dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded p-4 mb-6 transition-colors duration-200">
+              <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  Live Transcript Feed
+                </span>
+                {isSpeechRecognitionSupported ? (
+                  <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-900/40">
+                    LIVE MIC FEED
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-mono text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-100 dark:border-amber-900/40">
+                    GEMINI AI POST-PROCESS
+                  </span>
+                )}
+              </div>
+              <div className="h-[120px] overflow-y-auto text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-sans text-left pr-1 scroll-smooth" id="live-transcript-scroll-area">
+                {realtimeTranscript ? (
+                  <p className="whitespace-pre-wrap">{realtimeTranscript}</p>
+                ) : (
+                  <p className="text-slate-400 dark:text-slate-500 italic text-center py-8">
+                    Listening... Start speaking to see live transcription.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Recording Controls */}
