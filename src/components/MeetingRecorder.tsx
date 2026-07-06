@@ -177,6 +177,12 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
         if (!isRecordingRef.current) return;
         animationFrameRef.current = requestAnimationFrame(draw);
         
+        // Dynamically adjust canvas width on screen resize / device orientation changes
+        const currentParentWidth = canvas.parentElement?.clientWidth || 600;
+        if (canvas.width !== currentParentWidth) {
+          canvas.width = currentParentWidth;
+        }
+        
         let amplitude = 0;
         if (analyser && !isPausedRef.current) {
           analyser.getByteFrequencyData(dataArray);
@@ -636,7 +642,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8 max-w-xl mx-auto transition-colors duration-200" id="recorder-container">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8 max-w-xl w-full mx-auto transition-colors duration-200" id="recorder-container">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white uppercase" id="recorder-title">
@@ -916,7 +922,7 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={stopRecording}
-                className="px-8 h-13 rounded-2xl bg-red-600 hover:bg-red-750 text-white font-bold flex items-center justify-center gap-2.5 shadow-md shadow-red-500/15 transition-all cursor-pointer uppercase text-xs tracking-widest"
+                className="px-4 sm:px-8 h-13 rounded-2xl bg-red-600 hover:bg-red-755 text-white font-bold flex items-center justify-center gap-2.5 shadow-md shadow-red-500/15 transition-all cursor-pointer uppercase text-xs tracking-widest flex-shrink-0"
                 id="stop-recording-btn"
               >
                 <Square className="w-4 h-4 text-white fill-white" />

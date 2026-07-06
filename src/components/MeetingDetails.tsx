@@ -628,7 +628,7 @@ export default function MeetingDetails({ meeting, onBack, onUpdateMeeting }: Mee
                   <div className="relative" id="export-menu-container">
                     <button 
                       onClick={() => setShowExportMenu(!showExportMenu)}
-                      className="px-4.5 py-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-widest flex items-center gap-2.5 shadow-sm hover:shadow-md/5 transition-all cursor-pointer select-none"
+                      className="px-3 sm:px-4.5 py-2.5 sm:py-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-widest flex items-center gap-2.5 shadow-sm hover:shadow-md/5 transition-all cursor-pointer select-none"
                       title="Export Options"
                       id="export-options-toggle-btn"
                     >
