@@ -21,7 +21,7 @@ const ai = new GoogleGenAI({
   }
 });
 
-// Helper function to dynamically fall back to gemini-3.1-flash-lite on 429 / Quota errors
+// Helper function to dynamically fall back to gemini-3.1-flash-lite on 429 / 503 or quota errors
 async function generateContentWithFallback(params: {
   contents: any[];
   config?: any;
@@ -34,17 +34,23 @@ async function generateContentWithFallback(params: {
     });
   } catch (error: any) {
     const errorStr = (error?.message || "").toLowerCase();
-    const isQuotaError = 
+    const isQuotaOrTransientError = 
       errorStr.includes("quota") || 
       errorStr.includes("rate-limit") || 
       errorStr.includes("429") || 
       errorStr.includes("resource_exhausted") ||
       errorStr.includes("exceeded your current quota") ||
+      errorStr.includes("503") ||
+      errorStr.includes("unavailable") ||
+      errorStr.includes("high demand") ||
+      errorStr.includes("temporarily") ||
       error?.status === 429 ||
-      error?.code === 429;
+      error?.code === 429 ||
+      error?.status === 503 ||
+      error?.code === 503;
 
-    if (isQuotaError) {
-      console.warn("[Server] gemini-3.5-flash rate limit/quota hit. Automatically falling back to gemini-3.1-flash-lite...");
+    if (isQuotaOrTransientError) {
+      console.warn("[Server] gemini-3.5-flash rate limit/quota/high-demand hit. Automatically falling back to gemini-3.1-flash-lite...");
       try {
         return await ai.models.generateContent({
           model: "gemini-3.1-flash-lite",

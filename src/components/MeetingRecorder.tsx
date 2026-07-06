@@ -542,8 +542,22 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
       });
 
       if (!processRes.ok) {
-        const errData = await processRes.json();
-        throw new Error(errData.error || 'AI meeting processing failed');
+        let errMsg = 'AI meeting processing failed';
+        try {
+          const contentType = processRes.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errData = await processRes.json();
+            errMsg = errData.error || errMsg;
+          } else {
+            const errText = await processRes.text();
+            // Clean up html tags for display if they exist
+            const cleanText = errText.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+            errMsg = `Server error (${processRes.status}): ${cleanText.slice(0, 150)}`;
+          }
+        } catch (e) {
+          errMsg = `HTTP error ${processRes.status}`;
+        }
+        throw new Error(errMsg);
       }
 
       const { notes } = await processRes.json();
@@ -583,24 +597,29 @@ export default function MeetingRecorder({ onMeetingSaved, onCancel }: MeetingRec
       console.error('Error post-processing recording:', err);
       const rawMessage = err.message || 'An unexpected connection or processing error occurred.';
       
-      // Check if it is a quota or rate-limit error (Status 429 / RESOURCE_EXHAUSTED)
-      const isQuotaError = 
+      // Check if it is a transient error or rate-limit error (Status 429 / 503 / RESOURCE_EXHAUSTED / UNAVAILABLE / high demand)
+      const isQuotaOrTransientError = 
         rawMessage.toLowerCase().includes('quota') || 
         rawMessage.toLowerCase().includes('rate-limit') || 
         rawMessage.toLowerCase().includes('429') || 
+        rawMessage.toLowerCase().includes('503') || 
+        rawMessage.toLowerCase().includes('unavailable') || 
+        rawMessage.toLowerCase().includes('high demand') || 
         rawMessage.toLowerCase().includes('resource_exhausted') ||
         rawMessage.toLowerCase().includes('exceeded your current quota');
 
-      if (isQuotaError) {
+      if (isQuotaOrTransientError) {
         // Parse custom seconds to wait if returned by the API
         const secondsMatch = rawMessage.match(/Please retry in ([\d\.]+)s/i);
-        let extractedSeconds = 60; // default to 60 seconds
+        let extractedSeconds = 15; // default to 15 seconds for transient/high demand to avoid long waiting
         if (secondsMatch && secondsMatch[1]) {
           extractedSeconds = Math.ceil(parseFloat(secondsMatch[1]));
+        } else if (rawMessage.toLowerCase().includes('quota') || rawMessage.toLowerCase().includes('429')) {
+          extractedSeconds = 60; // 60s for true quota resets
         }
         
         setCooldownSeconds(extractedSeconds);
-        setErrorMessage(`You have temporarily exceeded the Gemini API's free-tier rate limits. Please wait ${extractedSeconds} seconds for your quota to reset. Your meeting data has been kept completely safe! Just click "Retry Processing & Save" once the timer runs out.`);
+        setErrorMessage(`The Gemini AI service is currently experiencing heavy demand or rate-limit. Please wait ${extractedSeconds} seconds. Your meeting data is 100% safe! Just click "Retry Processing & Save" once the timer runs out.`);
       } else {
         setErrorMessage(rawMessage);
       }
