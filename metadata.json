@@ -1,0 +1,6 @@
+{
+  "name": "Meeting Recorder & Notes",
+  "description": "Record audio meetings, transcribe using Gemini 3.5 Flash, and generate structured notes, summaries, decisions, and action items.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
